@@ -9,9 +9,9 @@ let isAlwaysOnTop = true;
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 390,
-    height: 236,
+    height: 336,
     minWidth: 390,
-    minHeight: 236,
+    minHeight: 336,
     frame: false,
     transparent: true,
     resizable: false,

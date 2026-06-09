@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "electron .",
     "start": "electron .",
+    "test:pace": "node scripts/verify-pace-advice.js",
     "build": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win portable",
     "build:dir": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --dir"
   },

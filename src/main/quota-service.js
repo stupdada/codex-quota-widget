@@ -1,6 +1,7 @@
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const { buildPaceAdvice } = require("./pace-advice");
 
 const DEFAULT_TIMEOUT_MS = 12000;
 
@@ -42,8 +43,7 @@ function normalizeSnapshot(snapshot) {
   const primary = normalizeWindow(snapshot.primary);
   const secondary = normalizeWindow(snapshot.secondary);
   const activeWindow = primary || secondary;
-
-  return {
+  const normalized = {
     limitId: snapshot.limitId || "codex",
     limitName: snapshot.limitName || "Codex",
     planType: snapshot.planType || "unknown",
@@ -55,6 +55,11 @@ function normalizeSnapshot(snapshot) {
     usedPercent: activeWindow ? activeWindow.usedPercent : null,
     resetsAt: activeWindow ? activeWindow.resetsAt : null,
     fetchedAt: new Date().toISOString()
+  };
+
+  return {
+    ...normalized,
+    paceAdvice: buildPaceAdvice(normalized, normalized.fetchedAt)
   };
 }
 
