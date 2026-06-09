@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("codexQuota", {
   setAlwaysOnTop: (value) => ipcRenderer.invoke("window:alwaysOnTop:set", value),
   getCompactMode: () => ipcRenderer.invoke("window:compact:get"),
   setCompactMode: (value) => ipcRenderer.invoke("window:compact:set", value),
+  getCompactScale: () => ipcRenderer.invoke("window:compactScale:get"),
+  setCompactScale: (value) => ipcRenderer.invoke("window:compactScale:set", value),
   openCodex: () => ipcRenderer.invoke("external:openCodex"),
   onRefresh: (callback) => {
     ipcRenderer.on("quota:refresh", callback);
@@ -17,5 +19,8 @@ contextBridge.exposeInMainWorld("codexQuota", {
   },
   onCompactChanged: (callback) => {
     ipcRenderer.on("window:compactChanged", (_event, value) => callback(value));
+  },
+  onCompactScaleChanged: (callback) => {
+    ipcRenderer.on("window:compactScaleChanged", (_event, value) => callback(value));
   }
 });

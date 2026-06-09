@@ -6,19 +6,41 @@ let mainWindow;
 let tray;
 let isAlwaysOnTop = true;
 let isCompactMode = false;
+let compactScale = 1;
 
 const WINDOW_SIZES = {
-  full: { width: 390, height: 336 },
-  compact: { width: 360, height: 240 }
+  full: { width: 390, height: 336 }
 };
+
+const COMPACT_BASE_SIZE = { width: 190, height: 205 };
+const COMPACT_SCALE_LIMITS = { min: 0.75, max: 1.8 };
+
+function clampCompactScale(value) {
+  const scale = Number(value);
+  if (!Number.isFinite(scale)) return 1;
+  return Math.min(COMPACT_SCALE_LIMITS.max, Math.max(COMPACT_SCALE_LIMITS.min, scale));
+}
+
+function scaledCompactSize(scale = compactScale) {
+  const safeScale = clampCompactScale(scale);
+  return {
+    width: Math.round(COMPACT_BASE_SIZE.width * safeScale),
+    height: Math.round(COMPACT_BASE_SIZE.height * safeScale)
+  };
+}
+
+function compactMinimumSize() {
+  return scaledCompactSize(COMPACT_SCALE_LIMITS.min);
+}
 
 function createWindow() {
   const initialSize = WINDOW_SIZES.full;
+  const minCompactSize = compactMinimumSize();
   mainWindow = new BrowserWindow({
     width: initialSize.width,
     height: initialSize.height,
-    minWidth: WINDOW_SIZES.compact.width,
-    minHeight: WINDOW_SIZES.compact.height,
+    minWidth: minCompactSize.width,
+    minHeight: minCompactSize.height,
     frame: false,
     transparent: true,
     resizable: false,
@@ -96,14 +118,30 @@ function setAlwaysOnTop(value) {
 function setCompactMode(value) {
   isCompactMode = Boolean(value);
   if (mainWindow) {
-    const size = isCompactMode ? WINDOW_SIZES.compact : WINDOW_SIZES.full;
-    mainWindow.setMinimumSize(size.width, size.height);
+    const size = isCompactMode ? scaledCompactSize() : WINDOW_SIZES.full;
+    const minSize = isCompactMode ? compactMinimumSize() : WINDOW_SIZES.full;
+    mainWindow.setMinimumSize(minSize.width, minSize.height);
     mainWindow.setSize(size.width, size.height, false);
     placeWindowTopRight();
     mainWindow.webContents.send("window:compactChanged", isCompactMode);
+    mainWindow.webContents.send("window:compactScaleChanged", compactScale);
   }
   rebuildTrayMenu();
   return isCompactMode;
+}
+
+function setCompactScale(value) {
+  compactScale = clampCompactScale(value);
+  if (mainWindow) {
+    mainWindow.webContents.send("window:compactScaleChanged", compactScale);
+    if (isCompactMode) {
+      const size = scaledCompactSize();
+      const minSize = compactMinimumSize();
+      mainWindow.setMinimumSize(minSize.width, minSize.height);
+      mainWindow.setSize(size.width, size.height, false);
+    }
+  }
+  return compactScale;
 }
 
 function toggleWindow() {
@@ -127,6 +165,8 @@ app.whenReady().then(() => {
   ipcMain.handle("window:alwaysOnTop:set", (_event, value) => setAlwaysOnTop(value));
   ipcMain.handle("window:compact:get", () => isCompactMode);
   ipcMain.handle("window:compact:set", (_event, value) => setCompactMode(value));
+  ipcMain.handle("window:compactScale:get", () => compactScale);
+  ipcMain.handle("window:compactScale:set", (_event, value) => setCompactScale(value));
   ipcMain.handle("external:openCodex", () => {
     shell.openPath(path.join(process.env.LOCALAPPDATA || "", "OpenAI", "Codex", "bin", "codex.exe"));
   });

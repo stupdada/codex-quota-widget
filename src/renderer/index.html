@@ -63,21 +63,6 @@
           </div>
         </div>
 
-        <div id="dualMeter" class="dual-meter" aria-label="7天窗口和5小时窗口剩余额度">
-          <div class="dual-half dual-weekly">
-            <div id="dualWeeklyFill" class="dual-fill weekly-fill"></div>
-            <span class="dual-label">7d</span>
-            <strong id="dualWeeklyText">--</strong>
-          </div>
-          <div class="dual-half dual-short">
-            <div id="dualShortFill" class="dual-fill short-fill"></div>
-            <span class="dual-label">5h</span>
-            <strong id="dualShortText">--</strong>
-          </div>
-          <div class="dual-divider" aria-hidden="true"></div>
-          <div class="shine"></div>
-        </div>
-
         <div class="quota-panel">
           <div class="quota-card primary">
             <span id="primaryLabel">5小时窗口</span>
@@ -114,6 +99,41 @@
         <span id="statusDot" class="status-dot loading"></span>
         <span id="statusText">正在读取 Codex 额度...</span>
       </footer>
+
+      <section id="compactShell" class="compact-shell" aria-label="Codex 额度悬浮球">
+        <div id="compactOrb" class="compact-orb" aria-label="7天窗口和5小时窗口剩余额度">
+          <div class="orb-half orb-weekly">
+            <div id="compactWeeklyFill" class="orb-fill weekly-fill"></div>
+            <div id="compactWeeklyIdeal" class="orb-ideal" aria-hidden="true"></div>
+            <span class="orb-label">7d</span>
+            <strong id="compactWeeklyText">--</strong>
+          </div>
+          <div class="orb-half orb-short">
+            <div id="compactShortFill" class="orb-fill short-fill"></div>
+            <div id="compactShortIdeal" class="orb-ideal" aria-hidden="true"></div>
+            <span class="orb-label">5h</span>
+            <strong id="compactShortText">--</strong>
+          </div>
+          <div class="orb-divider" aria-hidden="true"></div>
+          <div class="orb-shine" aria-hidden="true"></div>
+        </div>
+
+        <div class="compact-controls">
+          <button id="compactExpandBtn" class="compact-control-button" title="展开窗口" aria-label="展开窗口">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M9 9 4 4M15 9l5-5M9 15l-5 5M15 15l5 5" />
+            </svg>
+          </button>
+          <button id="compactCloseBtn" class="compact-control-button danger" title="退出" aria-label="退出">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+
+        <div id="compactAdviceText" class="compact-advice">--</div>
+        <button id="compactResizeHandle" class="compact-resize-handle" title="缩放" aria-label="缩放"></button>
+      </section>
     </main>
 
     <script src="./renderer.js"></script>

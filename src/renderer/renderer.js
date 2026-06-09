@@ -3,8 +3,12 @@ const state = {
   quota: null,
   error: null,
   compact: false,
+  compactScale: 1,
+  resizing: null,
   loading: false
 };
+
+const COMPACT_SCALE_LIMITS = { min: 0.75, max: 1.8 };
 
 const els = {
   body: document.body,
@@ -21,10 +25,16 @@ const els = {
   liquidFill: document.getElementById("liquidFill"),
   remaining: document.getElementById("remaining"),
   remainingLabel: document.getElementById("remainingLabel"),
-  dualWeeklyFill: document.getElementById("dualWeeklyFill"),
-  dualShortFill: document.getElementById("dualShortFill"),
-  dualWeeklyText: document.getElementById("dualWeeklyText"),
-  dualShortText: document.getElementById("dualShortText"),
+  compactWeeklyFill: document.getElementById("compactWeeklyFill"),
+  compactShortFill: document.getElementById("compactShortFill"),
+  compactWeeklyIdeal: document.getElementById("compactWeeklyIdeal"),
+  compactShortIdeal: document.getElementById("compactShortIdeal"),
+  compactWeeklyText: document.getElementById("compactWeeklyText"),
+  compactShortText: document.getElementById("compactShortText"),
+  compactExpandBtn: document.getElementById("compactExpandBtn"),
+  compactCloseBtn: document.getElementById("compactCloseBtn"),
+  compactResizeHandle: document.getElementById("compactResizeHandle"),
+  compactAdviceText: document.getElementById("compactAdviceText"),
   primaryLabel: document.getElementById("primaryLabel"),
   primaryText: document.getElementById("primaryText"),
   secondaryLabel: document.getElementById("secondaryLabel"),
@@ -63,6 +73,7 @@ const copy = {
     unpin: "取消置顶",
     compact: "紧凑窗口",
     expand: "展开窗口",
+    resize: "缩放",
     statusLoading: "正在读取 Codex 额度...",
     statusReady: "额度已更新",
     statusError: "无法读取 Codex 额度",
@@ -107,6 +118,7 @@ const copy = {
     unpin: "Unpin",
     compact: "Compact",
     expand: "Expand",
+    resize: "Resize",
     statusLoading: "Reading Codex quota...",
     statusReady: "Quota updated",
     statusError: "Unable to read Codex quota",
@@ -150,6 +162,12 @@ function setAttr(element, name, value) {
 
 function percentText(value) {
   return Number.isFinite(Number(value)) ? `${Math.round(Number(value))}%` : "--";
+}
+
+function percentCss(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return `${Math.min(100, Math.max(0, number))}%`;
 }
 
 function signedPercentText(value) {
@@ -206,6 +224,12 @@ function renderStaticCopy() {
   setAttr(els.minimizeBtn, "aria-label", t("hide"));
   setAttr(els.closeBtn, "title", t("close"));
   setAttr(els.closeBtn, "aria-label", t("close"));
+  setAttr(els.compactExpandBtn, "title", t("expand"));
+  setAttr(els.compactExpandBtn, "aria-label", t("expand"));
+  setAttr(els.compactCloseBtn, "title", t("close"));
+  setAttr(els.compactCloseBtn, "aria-label", t("close"));
+  setAttr(els.compactResizeHandle, "title", t("resize"));
+  setAttr(els.compactResizeHandle, "aria-label", t("resize"));
 }
 
 function renderQuota(quota) {
@@ -222,7 +246,7 @@ function renderQuota(quota) {
   setText(els.statusText, t("statusReady"));
   setText(els.remaining, percentText(remaining));
   els.liquidFill.style.height = percentText(remaining);
-  renderDualMeter(quota);
+  renderCompactOrb(quota);
   setText(els.primaryText, formatWindow(quota?.primary));
   setText(els.secondaryText, formatWindow(quota?.secondary));
   setText(els.planText, quota?.planType || t("unknown"));
@@ -240,18 +264,39 @@ function renderPaceAdvice(advice) {
   setText(els.idealPaceText, percentText(weekly?.idealRemainingPercent));
   setText(els.deltaPaceText, signedPercentText(weekly?.paceDelta));
   els.paceBadge.className = `pace-badge ${overall.severity}`;
+  renderCompactAdvice(advice);
 }
 
-function renderDualMeter(quota) {
+function renderCompactAdvice(advice) {
+  const overall = advice?.overall || { status: "unknown", severity: "muted" };
+  setText(els.compactAdviceText, t(`status.${overall.status}`));
+  els.compactAdviceText.className = `compact-advice ${overall.severity}`;
+}
+
+function setFillHeight(element, value) {
+  if (!element) return;
+  element.style.height = percentCss(value) || "0%";
+}
+
+function setIdealMarker(element, value) {
+  if (!element) return;
+  const markerPosition = percentCss(value);
+  element.hidden = !markerPosition;
+  if (markerPosition) element.style.bottom = markerPosition;
+}
+
+function renderCompactOrb(quota) {
   const weekly = quota?.paceAdvice?.longWindow;
   const short = quota?.paceAdvice?.shortWindow;
   const weeklyPercent = percentText(weekly?.remainingPercent);
   const shortPercent = percentText(short?.remainingPercent);
 
-  els.dualWeeklyFill.style.height = weeklyPercent;
-  els.dualShortFill.style.height = shortPercent;
-  setText(els.dualWeeklyText, weeklyPercent);
-  setText(els.dualShortText, shortPercent);
+  setFillHeight(els.compactWeeklyFill, weekly?.remainingPercent);
+  setFillHeight(els.compactShortFill, short?.remainingPercent);
+  setIdealMarker(els.compactWeeklyIdeal, weekly?.idealRemainingPercent);
+  setIdealMarker(els.compactShortIdeal, short?.idealRemainingPercent);
+  setText(els.compactWeeklyText, weeklyPercent);
+  setText(els.compactShortText, shortPercent);
 }
 
 function renderLoading() {
@@ -261,6 +306,10 @@ function renderLoading() {
   els.statusDot.className = "status-dot loading";
   setText(els.stateText, t("loading"));
   setText(els.statusText, t("statusLoading"));
+  if (!state.quota) {
+    renderCompactOrb(null);
+    renderCompactAdvice(null);
+  }
 }
 
 function renderError(error) {
@@ -274,7 +323,7 @@ function renderError(error) {
   setText(els.statusText, `${t("statusError")}：${friendlyErrorMessage(error)}`);
   setText(els.remaining, "--%");
   els.liquidFill.style.height = "0%";
-  renderDualMeter(null);
+  renderCompactOrb(null);
   setText(els.primaryText, "--");
   setText(els.secondaryText, "--");
   setText(els.planText, "--");
@@ -314,6 +363,11 @@ async function syncCompactMode() {
   renderCompactMode(isCompact);
 }
 
+async function syncCompactScale() {
+  const compactScale = await window.codexQuota.getCompactScale();
+  renderCompactScale(compactScale);
+}
+
 function renderPin(isPinned) {
   els.pinBtn.classList.toggle("active", Boolean(isPinned));
   const label = isPinned ? t("unpin") : t("pin");
@@ -327,11 +381,55 @@ function renderCompactMode(isCompact) {
   renderCompactButton(state.compact);
 }
 
+function clampCompactScale(value) {
+  const scale = Number(value);
+  if (!Number.isFinite(scale)) return 1;
+  return Math.min(COMPACT_SCALE_LIMITS.max, Math.max(COMPACT_SCALE_LIMITS.min, scale));
+}
+
+function renderCompactScale(value) {
+  state.compactScale = clampCompactScale(value);
+  document.documentElement.style.setProperty("--compact-scale", String(state.compactScale));
+}
+
 function renderCompactButton(isCompact) {
   const label = isCompact ? t("expand") : t("compact");
   els.compactBtn.classList.toggle("active", Boolean(isCompact));
   setAttr(els.compactBtn, "title", label);
   setAttr(els.compactBtn, "aria-label", label);
+}
+
+function startCompactResize(event) {
+  if (!state.compact) return;
+  event.preventDefault();
+  event.stopPropagation();
+  state.resizing = {
+    startX: event.screenX,
+    startY: event.screenY,
+    startScale: state.compactScale
+  };
+  els.body.classList.add("is-resizing");
+  window.addEventListener("mousemove", handleCompactResize);
+  window.addEventListener("mouseup", stopCompactResize, { once: true });
+}
+
+function handleCompactResize(event) {
+  if (!state.resizing) return;
+  event.preventDefault();
+  const deltaX = event.screenX - state.resizing.startX;
+  const deltaY = event.screenY - state.resizing.startY;
+  const dominantDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
+  const nextScale = clampCompactScale(state.resizing.startScale + dominantDelta / 180);
+  renderCompactScale(nextScale);
+  window.codexQuota.setCompactScale(nextScale).then(renderCompactScale).catch(() => {});
+}
+
+function stopCompactResize() {
+  if (!state.resizing) return;
+  window.removeEventListener("mousemove", handleCompactResize);
+  els.body.classList.remove("is-resizing");
+  state.resizing = null;
+  window.codexQuota.setCompactScale(state.compactScale).then(renderCompactScale).catch(() => {});
 }
 
 els.langBtn.addEventListener("click", () => {
@@ -351,6 +449,14 @@ els.compactBtn.addEventListener("click", async () => {
   renderCompactMode(isCompact);
 });
 
+els.compactExpandBtn.addEventListener("click", async () => {
+  const isCompact = await window.codexQuota.setCompactMode(false);
+  renderCompactMode(isCompact);
+});
+
+els.compactCloseBtn.addEventListener("click", () => window.codexQuota.close());
+els.compactResizeHandle.addEventListener("mousedown", startCompactResize);
+
 els.refreshBtn.addEventListener("click", refreshQuota);
 els.minimizeBtn.addEventListener("click", () => window.codexQuota.minimize());
 els.closeBtn.addEventListener("click", () => window.codexQuota.close());
@@ -363,8 +469,10 @@ els.pinBtn.addEventListener("click", async () => {
 window.codexQuota.onRefresh(refreshQuota);
 window.codexQuota.onAlwaysOnTopChanged(renderPin);
 window.codexQuota.onCompactChanged(renderCompactMode);
+window.codexQuota.onCompactScaleChanged(renderCompactScale);
 
 renderLoading();
 syncAlwaysOnTop();
 syncCompactMode();
+syncCompactScale();
 refreshQuota();
