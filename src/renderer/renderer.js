@@ -35,6 +35,8 @@ const els = {
   compactCloseBtn: document.getElementById("compactCloseBtn"),
   compactResizeHandle: document.getElementById("compactResizeHandle"),
   compactAdviceText: document.getElementById("compactAdviceText"),
+  compactShortResetText: document.getElementById("compactShortResetText"),
+  compactWeeklyResetText: document.getElementById("compactWeeklyResetText"),
   primaryLabel: document.getElementById("primaryLabel"),
   primaryText: document.getElementById("primaryText"),
   secondaryLabel: document.getElementById("secondaryLabel"),
@@ -193,6 +195,10 @@ function formatReset(value) {
   return `${t("reset")} ${month}/${day} ${hour}:${minute}`;
 }
 
+function compactResetText(window) {
+  return window?.resetsAt ? formatReset(window.resetsAt) : `${t("reset")} --`;
+}
+
 function pad2(value) {
   return String(value).padStart(2, "0");
 }
@@ -280,9 +286,9 @@ function setFillHeight(element, value) {
 
 function setIdealMarker(element, value) {
   if (!element) return;
-  const markerPosition = percentCss(value);
-  element.hidden = !markerPosition;
-  if (markerPosition) element.style.bottom = markerPosition;
+  const idealHeight = percentCss(value);
+  element.hidden = !idealHeight;
+  element.style.height = idealHeight || "0%";
 }
 
 function renderCompactOrb(quota) {
@@ -297,6 +303,8 @@ function renderCompactOrb(quota) {
   setIdealMarker(els.compactShortIdeal, short?.idealRemainingPercent);
   setText(els.compactWeeklyText, weeklyPercent);
   setText(els.compactShortText, shortPercent);
+  setText(els.compactShortResetText, compactResetText(quota?.primary));
+  setText(els.compactWeeklyResetText, compactResetText(quota?.secondary));
 }
 
 function renderLoading() {

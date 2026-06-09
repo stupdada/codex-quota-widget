@@ -226,19 +226,11 @@ button {
 }
 
 .weekly-fill {
-  background: linear-gradient(180deg, rgba(101, 224, 141, 0.92), rgba(38, 145, 96, 0.94));
+  background: #ff5548;
 }
 
 .short-fill {
-  background: linear-gradient(180deg, rgba(92, 179, 255, 0.92), rgba(57, 109, 213, 0.94));
-}
-
-body[data-state="warning"] .weekly-fill {
-  background: linear-gradient(180deg, rgba(255, 209, 102, 0.96), rgba(220, 145, 45, 0.94));
-}
-
-body[data-state="danger"] .weekly-fill {
-  background: linear-gradient(180deg, rgba(255, 107, 107, 0.96), rgba(199, 53, 59, 0.95));
+  background: #8d55df;
 }
 
 .glass-rim,
@@ -487,9 +479,10 @@ body[data-state="danger"] .liquid-fill {
   top: 0;
   left: 0;
   display: none;
-  width: 190px;
-  height: 205px;
+  width: 210px;
+  height: 252px;
   color: #eef7f1;
+  background: transparent;
   transform: scale(var(--compact-scale));
   transform-origin: top left;
   -webkit-app-region: drag;
@@ -497,21 +490,15 @@ body[data-state="danger"] .liquid-fill {
 
 .compact-orb {
   position: absolute;
-  top: 12px;
-  left: 17px;
-  width: 156px;
-  height: 156px;
+  top: 14px;
+  left: 21px;
+  width: 168px;
+  height: 168px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.58);
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 32% 25%, rgba(255, 255, 255, 0.42), transparent 25%),
-    radial-gradient(circle at 68% 68%, rgba(255, 255, 255, 0.12), transparent 36%),
-    rgba(26, 30, 29, 0.52);
-  box-shadow:
-    0 14px 34px rgba(0, 0, 0, 0.28),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 0 32px rgba(255, 255, 255, 0.08);
+  background: transparent;
+  box-shadow: none;
 }
 
 .orb-half {
@@ -524,10 +511,12 @@ body[data-state="danger"] .liquid-fill {
 
 .orb-weekly {
   left: 0;
+  background: rgba(255, 85, 72, 0.24);
 }
 
 .orb-short {
   right: 0;
+  background: rgba(141, 85, 223, 0.26);
 }
 
 .orb-fill {
@@ -535,29 +524,28 @@ body[data-state="danger"] .liquid-fill {
   right: 0;
   bottom: 0;
   left: 0;
+  z-index: 1;
   height: 0%;
   transition: height 460ms ease;
 }
 
 .orb-ideal {
   position: absolute;
-  right: 6px;
-  left: 6px;
-  z-index: 3;
-  border-top: 2px dashed rgba(255, 255, 255, 0.9);
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
-  transform: translateY(1px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  height: 0%;
+  border: 0;
+  transition: height 460ms ease;
 }
 
-.orb-ideal::after {
-  position: absolute;
-  top: -4px;
-  right: -2px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.95);
-  content: "";
+.orb-weekly .orb-ideal {
+  background: rgba(255, 174, 158, 0.5);
+}
+
+.orb-short .orb-ideal {
+  background: rgba(204, 166, 255, 0.46);
 }
 
 .orb-ideal[hidden] {
@@ -566,14 +554,13 @@ body[data-state="danger"] .liquid-fill {
 
 .orb-divider {
   position: absolute;
-  top: 14px;
-  bottom: 14px;
+  top: 0;
+  bottom: 0;
   left: 50%;
   z-index: 4;
-  width: 2px;
-  background: rgba(255, 255, 255, 0.52);
-  box-shadow: 0 0 9px rgba(255, 255, 255, 0.28);
-  transform: translateX(-1px);
+  width: 1px;
+  background: rgba(255, 255, 255, 0.72);
+  transform: translateX(-0.5px);
 }
 
 .orb-label,
@@ -583,40 +570,33 @@ body[data-state="danger"] .liquid-fill {
   left: 0;
   z-index: 5;
   text-align: center;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+  text-shadow: none;
   user-select: none;
 }
 
 .orb-label {
-  top: 55px;
-  color: rgba(238, 247, 241, 0.75);
-  font-size: 13px;
+  top: 59px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 18px;
   font-weight: 800;
 }
 
 .orb-half strong {
-  top: 83px;
+  top: 91px;
   color: #ffffff;
-  font-size: 18px;
+  font-size: 26px;
   font-weight: 900;
   line-height: 1;
 }
 
 .orb-shine {
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  border-radius: inherit;
-  background:
-    radial-gradient(circle at 29% 24%, rgba(255, 255, 255, 0.3), transparent 23%),
-    linear-gradient(150deg, rgba(255, 255, 255, 0.13), transparent 44%);
-  pointer-events: none;
+  display: none;
 }
 
 .compact-controls {
   position: absolute;
   top: 7px;
-  right: 9px;
+  right: 12px;
   z-index: 8;
   display: flex;
   gap: 4px;
@@ -635,14 +615,14 @@ body[data-state="danger"] .liquid-fill {
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 999px;
   color: rgba(238, 247, 241, 0.92);
-  background: rgba(18, 20, 18, 0.56);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: none;
   cursor: pointer;
 }
 
 .compact-control-button:hover {
-  border-color: rgba(101, 224, 141, 0.52);
-  background: rgba(101, 224, 141, 0.2);
+  border-color: rgba(255, 255, 255, 0.56);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .compact-control-button.danger:hover {
@@ -662,18 +642,18 @@ body[data-state="danger"] .liquid-fill {
 
 .compact-advice {
   position: absolute;
-  right: 14px;
-  bottom: 9px;
-  left: 14px;
+  top: 188px;
+  right: 18px;
+  left: 18px;
   z-index: 7;
-  min-height: 26px;
-  padding: 4px 9px;
+  min-height: 22px;
+  padding: 2px 9px;
   overflow: hidden;
   border-radius: 999px;
   color: #121412;
   background: #b6c1bb;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
-  font-size: 14px;
+  box-shadow: none;
+  font-size: 13px;
   font-weight: 900;
   line-height: 18px;
   text-align: center;
@@ -723,11 +703,60 @@ body[data-state="danger"] .liquid-fill {
   -webkit-app-region: no-drag;
 }
 
+.compact-reset-info {
+  position: absolute;
+  top: 216px;
+  right: 36px;
+  left: 14px;
+  z-index: 7;
+  display: grid;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 12px;
+  line-height: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+  transform: translateY(-2px);
+}
+
+.compact-reset-row {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  align-items: center;
+  min-width: 0;
+}
+
+.compact-reset-row strong {
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.compact-reset-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-reset-short strong {
+  color: #d2adff;
+}
+
+.compact-reset-weekly strong {
+  color: #ffac9f;
+}
+
 .compact-shell:hover .compact-controls,
 .compact-shell:hover .compact-advice,
+.compact-shell:hover .compact-reset-info,
 .compact-shell:hover .compact-resize-handle,
 .is-resizing .compact-controls,
 .is-resizing .compact-advice,
+.is-resizing .compact-reset-info,
 .is-resizing .compact-resize-handle {
   opacity: 1;
   pointer-events: auto;

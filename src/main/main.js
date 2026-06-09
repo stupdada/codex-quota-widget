@@ -12,7 +12,7 @@ const WINDOW_SIZES = {
   full: { width: 390, height: 336 }
 };
 
-const COMPACT_BASE_SIZE = { width: 190, height: 205 };
+const COMPACT_BASE_SIZE = { width: 210, height: 252 };
 const COMPACT_SCALE_LIMITS = { min: 0.75, max: 1.8 };
 
 function clampCompactScale(value) {
@@ -120,6 +120,9 @@ function setCompactMode(value) {
   if (mainWindow) {
     const size = isCompactMode ? scaledCompactSize() : WINDOW_SIZES.full;
     const minSize = isCompactMode ? compactMinimumSize() : WINDOW_SIZES.full;
+    if (typeof mainWindow.setHasShadow === "function") {
+      mainWindow.setHasShadow(!isCompactMode);
+    }
     mainWindow.setMinimumSize(minSize.width, minSize.height);
     mainWindow.setSize(size.width, size.height, false);
     placeWindowTopRight();
