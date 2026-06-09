@@ -123,6 +123,7 @@ function setCompactMode(value) {
     if (typeof mainWindow.setHasShadow === "function") {
       mainWindow.setHasShadow(!isCompactMode);
     }
+    mainWindow.setSkipTaskbar(isCompactMode);
     mainWindow.setMinimumSize(minSize.width, minSize.height);
     mainWindow.setSize(size.width, size.height, false);
     placeWindowTopRight();

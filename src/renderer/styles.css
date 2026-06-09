@@ -485,7 +485,9 @@ body[data-state="danger"] .liquid-fill {
   background: transparent;
   transform: scale(var(--compact-scale));
   transform-origin: top left;
+  user-select: none;
   -webkit-app-region: no-drag;
+  -webkit-user-select: none;
 }
 
 .compact-orb {
@@ -660,6 +662,7 @@ body[data-state="danger"] .liquid-fill {
   line-height: 18px;
   text-align: center;
   text-overflow: ellipsis;
+  user-select: none;
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
@@ -667,6 +670,7 @@ body[data-state="danger"] .liquid-fill {
     opacity 150ms ease,
     transform 150ms ease;
   transform: translateY(-2px);
+  -webkit-user-select: none;
 }
 
 .compact-advice.good {
@@ -716,12 +720,14 @@ body[data-state="danger"] .liquid-fill {
   color: rgba(15, 16, 18, 0.88);
   font-size: 12px;
   line-height: 16px;
+  user-select: none;
   opacity: 0;
   pointer-events: none;
   transition:
     opacity 150ms ease,
     transform 150ms ease;
   transform: translateY(-2px);
+  -webkit-user-select: none;
 }
 
 .compact-reset-row {
@@ -729,12 +735,16 @@ body[data-state="danger"] .liquid-fill {
   grid-template-columns: 30px 1fr;
   align-items: center;
   min-width: 0;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .compact-reset-row strong {
   color: #111315;
   font-size: 15px;
   font-weight: 900;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .compact-reset-row span {
@@ -743,7 +753,9 @@ body[data-state="danger"] .liquid-fill {
   font-size: 14px;
   font-weight: 800;
   text-overflow: ellipsis;
+  user-select: none;
   white-space: nowrap;
+  -webkit-user-select: none;
 }
 
 .compact-reset-short strong {

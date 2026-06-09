@@ -72,6 +72,7 @@ const copy = {
     unknown: "未知",
     refresh: "刷新",
     hide: "隐藏",
+    hideToTray: "隐藏到托盘",
     close: "退出",
     pin: "置顶",
     unpin: "取消置顶",
@@ -117,6 +118,7 @@ const copy = {
     unknown: "Unknown",
     refresh: "Refresh",
     hide: "Hide",
+    hideToTray: "Hide to tray",
     close: "Quit",
     pin: "Pin",
     unpin: "Unpin",
@@ -234,8 +236,8 @@ function renderStaticCopy() {
   setAttr(els.closeBtn, "aria-label", t("close"));
   setAttr(els.compactExpandBtn, "title", t("expand"));
   setAttr(els.compactExpandBtn, "aria-label", t("expand"));
-  setAttr(els.compactCloseBtn, "title", t("close"));
-  setAttr(els.compactCloseBtn, "aria-label", t("close"));
+  setAttr(els.compactCloseBtn, "title", t("hideToTray"));
+  setAttr(els.compactCloseBtn, "aria-label", t("hideToTray"));
   setAttr(els.compactResizeHandle, "title", t("resize"));
   setAttr(els.compactResizeHandle, "aria-label", t("resize"));
 }
@@ -493,7 +495,7 @@ els.compactExpandBtn.addEventListener("click", async () => {
   renderCompactMode(isCompact);
 });
 
-els.compactCloseBtn.addEventListener("click", () => window.codexQuota.close());
+els.compactCloseBtn.addEventListener("click", () => window.codexQuota.minimize());
 els.compactOrb.addEventListener("mousedown", startCompactMove);
 els.compactResizeHandle.addEventListener("mousedown", startCompactResize);
 
