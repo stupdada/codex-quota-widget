@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const { buildPaceAdvice } = require("../src/main/pace-advice");
+const { normalizeSnapshot } = require("../src/main/quota-service");
 
 const now = new Date("2026-06-09T00:00:00.000Z");
 const sevenDaysMins = 7 * 24 * 60;
@@ -77,4 +78,31 @@ for (const testCase of cases) {
   }
 }
 
-console.log(`Verified ${cases.length} pace advice cases.`);
+const normalized = normalizeSnapshot({
+  limitId: "codex",
+  primary: {
+    usedPercent: 25,
+    windowDurationMins: fiveHoursMins,
+    resetsAt: Math.floor(now.getTime() / 1000)
+  }
+});
+
+assert.equal(normalized.remainingPercent, 75, "normalizes remaining percent from usedPercent");
+assert.equal(normalized.primary.resetsAt, now.toISOString(), "normalizes reset timestamp seconds");
+assert.throws(
+  () => normalizeSnapshot({}),
+  /does not include a usable quota window/,
+  "rejects snapshots without quota windows"
+);
+assert.throws(
+  () => normalizeSnapshot({ primary: { windowDurationMins: fiveHoursMins } }),
+  /missing a numeric usedPercent/,
+  "rejects quota windows without usedPercent"
+);
+assert.throws(
+  () => normalizeSnapshot({ primary: { usedPercent: 25, resetsAt: "not-a-time" } }),
+  /invalid reset timestamp/,
+  "rejects invalid reset timestamps"
+);
+
+console.log(`Verified ${cases.length} pace advice cases and 5 quota normalization checks.`);

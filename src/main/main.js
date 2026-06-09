@@ -1,18 +1,21 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } = require("electron");
 const path = require("node:path");
 const { getQuota } = require("./quota-service");
+
+const APP_ICON_PATH = path.join(__dirname, "../../assets/app-icon.png");
+const TRAY_ICON_PATH = path.join(__dirname, "../../assets/app-icon-tray-16.png");
 
 let mainWindow;
 let tray;
 let isAlwaysOnTop = true;
-let isCompactMode = false;
+let isCompactMode = true;
 let compactScale = 0.65;
 
 const WINDOW_SIZES = {
   full: { width: 390, height: 336 }
 };
 
-const COMPACT_BASE_SIZE = { width: 210, height: 252 };
+const COMPACT_BASE_SIZE = { width: 210, height: 264 };
 const COMPACT_SCALE_LIMITS = { min: 0.33, max: 1.8 };
 
 function clampCompactScale(value) {
@@ -34,7 +37,7 @@ function compactMinimumSize() {
 }
 
 function createWindow() {
-  const initialSize = WINDOW_SIZES.full;
+  const initialSize = isCompactMode ? scaledCompactSize() : WINDOW_SIZES.full;
   const minCompactSize = compactMinimumSize();
   mainWindow = new BrowserWindow({
     width: initialSize.width,
@@ -45,15 +48,18 @@ function createWindow() {
     transparent: true,
     resizable: false,
     alwaysOnTop: isAlwaysOnTop,
-    skipTaskbar: false,
+    skipTaskbar: isCompactMode,
     show: false,
     backgroundColor: "#00000000",
+    icon: APP_ICON_PATH,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false
     }
   });
+
+  mainWindow.setHasShadow(!isCompactMode);
 
   mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
   mainWindow.once("ready-to-show", () => {
@@ -63,7 +69,6 @@ function createWindow() {
 }
 
 function placeWindowTopRight() {
-  if (!mainWindow) return;
   const display = screen.getPrimaryDisplay();
   const { width, height } = mainWindow.getBounds();
   const { workArea } = display;
@@ -76,9 +81,10 @@ function placeWindowTopRight() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromDataURL(
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAK0lEQVR42mNk+M9Qz0AEYBxVSFUBCzAyMjL8Z2BgYJjFqIGjBo4aOAIAgV4EfpO0k7EAAAAASUVORK5CYII="
-  );
+  const icon = nativeImage.createFromPath(TRAY_ICON_PATH);
+  if (icon.isEmpty()) {
+    throw new Error(`Tray icon is missing or invalid: ${TRAY_ICON_PATH}`);
+  }
   tray = new Tray(icon);
   tray.setToolTip("Codex Quota Widget");
   rebuildTrayMenu();
@@ -86,11 +92,10 @@ function createTray() {
 }
 
 function rebuildTrayMenu() {
-  if (!tray) return;
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: "显示/隐藏", click: toggleWindow },
-      { label: "刷新额度", click: () => mainWindow?.webContents.send("quota:refresh") },
+      { label: "刷新额度", click: () => mainWindow.webContents.send("quota:refresh") },
       {
         label: isCompactMode ? "展开窗口" : "紧凑窗口",
         click: () => setCompactMode(!isCompactMode)
@@ -107,58 +112,55 @@ function rebuildTrayMenu() {
 
 function setAlwaysOnTop(value) {
   isAlwaysOnTop = Boolean(value);
-  if (mainWindow) {
-    mainWindow.setAlwaysOnTop(isAlwaysOnTop);
-    mainWindow.webContents.send("window:alwaysOnTopChanged", isAlwaysOnTop);
-  }
+  mainWindow.setAlwaysOnTop(isAlwaysOnTop);
+  mainWindow.webContents.send("window:alwaysOnTopChanged", isAlwaysOnTop);
   rebuildTrayMenu();
   return isAlwaysOnTop;
 }
 
 function setCompactMode(value) {
   isCompactMode = Boolean(value);
-  if (mainWindow) {
-    const size = isCompactMode ? scaledCompactSize() : WINDOW_SIZES.full;
-    const minSize = isCompactMode ? compactMinimumSize() : WINDOW_SIZES.full;
-    if (typeof mainWindow.setHasShadow === "function") {
-      mainWindow.setHasShadow(!isCompactMode);
-    }
-    mainWindow.setSkipTaskbar(isCompactMode);
-    mainWindow.setMinimumSize(minSize.width, minSize.height);
-    mainWindow.setSize(size.width, size.height, false);
-    placeWindowTopRight();
-    mainWindow.webContents.send("window:compactChanged", isCompactMode);
-    mainWindow.webContents.send("window:compactScaleChanged", compactScale);
-  }
+  const size = isCompactMode ? scaledCompactSize() : WINDOW_SIZES.full;
+  const minSize = isCompactMode ? compactMinimumSize() : WINDOW_SIZES.full;
+  mainWindow.setHasShadow(!isCompactMode);
+  mainWindow.setSkipTaskbar(isCompactMode);
+  mainWindow.setMinimumSize(minSize.width, minSize.height);
+  mainWindow.setSize(size.width, size.height, false);
+  placeWindowTopRight();
+  mainWindow.webContents.send("window:compactChanged", isCompactMode);
+  mainWindow.webContents.send("window:compactScaleChanged", compactScale);
   rebuildTrayMenu();
   return isCompactMode;
 }
 
 function setCompactScale(value) {
   compactScale = clampCompactScale(value);
-  if (mainWindow) {
-    mainWindow.webContents.send("window:compactScaleChanged", compactScale);
-    if (isCompactMode) {
-      const size = scaledCompactSize();
-      const minSize = compactMinimumSize();
-      mainWindow.setMinimumSize(minSize.width, minSize.height);
-      mainWindow.setSize(size.width, size.height, false);
-    }
+  mainWindow.webContents.send("window:compactScaleChanged", compactScale);
+  if (isCompactMode) {
+    const size = scaledCompactSize();
+    const minSize = compactMinimumSize();
+    mainWindow.setMinimumSize(minSize.width, minSize.height);
+    mainWindow.setSize(size.width, size.height, false);
   }
   return compactScale;
 }
 
 function moveCompactWindow(deltaX, deltaY) {
-  if (!mainWindow || !isCompactMode) return null;
+  if (!mainWindow) throw new Error("Main window has not been created.");
+  if (!isCompactMode) throw new Error("Compact window movement is only available in compact mode.");
+  const parsedDeltaX = Number(deltaX);
+  const parsedDeltaY = Number(deltaY);
+  if (!Number.isFinite(parsedDeltaX) || !Number.isFinite(parsedDeltaY)) {
+    throw new Error("Compact window movement requires finite numeric deltas.");
+  }
   const bounds = mainWindow.getBounds();
-  const x = Math.round(bounds.x + Number(deltaX || 0));
-  const y = Math.round(bounds.y + Number(deltaY || 0));
+  const x = Math.round(bounds.x + parsedDeltaX);
+  const y = Math.round(bounds.y + parsedDeltaY);
   mainWindow.setPosition(x, y, false);
   return { x, y };
 }
 
 function toggleWindow() {
-  if (!mainWindow) return;
   if (mainWindow.isVisible()) {
     mainWindow.hide();
   } else {
@@ -168,11 +170,15 @@ function toggleWindow() {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === "win32") {
+    app.setAppUserModelId("cn.codex.quota.widget");
+  }
+
   createWindow();
   createTray();
 
   ipcMain.handle("quota:get", async () => getQuota());
-  ipcMain.handle("window:minimize", () => mainWindow?.hide());
+  ipcMain.handle("window:minimize", () => mainWindow.hide());
   ipcMain.handle("window:close", () => app.quit());
   ipcMain.handle("window:alwaysOnTop:get", () => isAlwaysOnTop);
   ipcMain.handle("window:alwaysOnTop:set", (_event, value) => setAlwaysOnTop(value));
@@ -181,9 +187,6 @@ app.whenReady().then(() => {
   ipcMain.handle("window:compactScale:get", () => compactScale);
   ipcMain.handle("window:compactScale:set", (_event, value) => setCompactScale(value));
   ipcMain.handle("window:compactMove", (_event, deltaX, deltaY) => moveCompactWindow(deltaX, deltaY));
-  ipcMain.handle("external:openCodex", () => {
-    shell.openPath(path.join(process.env.LOCALAPPDATA || "", "OpenAI", "Codex", "bin", "codex.exe"));
-  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -1,65 +1,24 @@
+# Codex Quota Widget
 
-# Codex LED Widget
+Codex Quota Widget 是一个 Windows 桌面悬浮小组件，用来查看本机 Codex 额度、重置时间和使用节奏。
 
-<p align="center">
-  <img src="assets/1.png" width="360" />
-</p>
+本项目改造自 [xicunwus2025-sys/codex-led-widget](https://github.com/xicunwus2025-sys/codex-led-widget)。原项目提供了透明玻璃风格的 Codex 额度窗口，本改造版重点补上了更适合日常开发盯盘的紧凑悬浮球、7 天节奏判断、系统托盘和发布前源码清理。
 
-<p align="center">
-  <strong>A tiny liquid-glass Windows desktop widget for monitoring your local Codex usage quota.</strong>
-</p>
+![Codex Quota Widget](assets/1.png)
 
-<p align="center">
-  <strong>一个用于查看本机 Codex 剩余额度的 Windows 桌面悬浮小组件。</strong>
-</p>
+## 主要改造
 
-<p align="center">
-  <a href="#中文说明">中文</a> ·
-  <a href="#english">English</a> ·
-  <a href="https://github.com/xicunwus2025-sys/codex-led-widget/releases">Download</a>
-</p>
+- 默认启动为紧凑悬浮球，不占任务栏，适合长期放在桌面边缘。
+- 同时展示 7 天窗口和 5 小时窗口的剩余额度。
+- 增加 7 天使用节奏建议：可加快使用、正常、建议减速、接近耗尽。
+- 在悬浮球里显示实际剩余额度和理想剩余额度的液面位置，方便判断当前消耗是否超前。
+- 鼠标悬停时显示窗口重置时间、展开按钮、隐藏按钮和缩放手柄。
+- 增加系统托盘入口，可显示/隐藏、刷新、切换紧凑模式、切换置顶、退出。
+- 替换应用图标和托盘图标，打包产物使用 `CodexQuota.exe`。
+- 收紧额度读取逻辑，只接受 Codex 明确返回的 `rateLimitsByLimitId.codex` 数据，避免把未知数据误当作额度。
+- 清理发布前冗余代码，删除未使用 IPC、内联备用图标、空吞错和无用兼容分支。
 
----
-
-# 中文说明
-
-Codex LED Widget 是一个 Windows 桌面悬浮小组件，用于显示本机 Codex 剩余额度。
-
-它采用透明液态玻璃质感界面，通过红、黄、绿三种 LED 状态，让你不用频繁打开命令行或页面，也能快速知道 Codex 额度是否快用完。
-
----
-
-## ✨ 功能特点
-
-- 🟢 **红绿灯额度状态**
-  - 绿色：剩余额度大于等于 10%
-  - 黄色：剩余额度小于 10%，但仍大于 0
-  - 红色：剩余额度为 0
-
-- 🪟 **液态玻璃悬浮窗口**
-  - 透明桌面小组件
-  - 简洁、高颜值
-  - 不遮挡正常开发工作
-
-- 📌 **支持置顶**
-  - 可以让小组件始终显示在其他窗口上方
-  - 不需要时也可以取消置顶
-
-- 🌐 **支持中文 / English 切换**
-  - 内置双语界面
-  - 中英文用户都可以使用
-
-- 🔄 **自动刷新额度**
-  - 自动读取 Codex 使用情况
-  - 到额度重置时间后会再次刷新
-
-- 🔐 **隐私友好**
-  - 使用本机已有的 Codex 登录状态
-  - 不读取、不保存、不上传、不显示认证 Token
-
----
-
-## 📸 截图预览
+## 截图
 
 <p align="center">
   <img src="assets/1.png" width="260" />
@@ -72,72 +31,56 @@ Codex LED Widget 是一个 Windows 桌面悬浮小组件，用于显示本机 Co
   <img src="assets/5.png" width="260" />
 </p>
 
----
+## 下载和运行
 
-## 🚀 下载
+前往 [Releases](https://github.com/stupdada/codex-quota-widget/releases) 下载最新版 `CodexQuota.exe`。
 
-请前往 **Releases** 页面下载最新版 Windows `.exe` 文件：
+运行前需要满足：
 
-👉 [前往 Releases 下载](https://github.com/xicunwus2025-sys/codex-led-widget/releases)
+- Windows 10 或 Windows 11。
+- 已安装并登录 OpenAI Codex。
+- 本机 Codex CLI 可以正常读取账号额度。
 
-当前版本：`v0.1.0`
+使用方式：
 
----
+1. 下载 `CodexQuota.exe`。
+2. 双击运行。
+3. 首次运行如果 Windows 提示未知发布者，确认来源可信后选择“更多信息”再选择“仍要运行”。
+4. 鼠标悬停在悬浮球上可以展开控制按钮和重置时间。
+5. 右键或点击系统托盘图标可以显示/隐藏窗口、刷新额度、切换置顶或退出。
 
-## 🖥️ 运行要求
+## 界面说明
 
-- Windows 10 / Windows 11
-- 电脑上已经安装 Codex
-- 本机 Codex 已经登录
+紧凑悬浮球分成左右两个半球：
 
----
+- `7d`：7 天窗口剩余额度，是节奏判断的主依据。
+- `5h`：5 小时窗口剩余额度，作为短周期参考。
 
-## 📦 使用方法
+节奏建议基于 7 天窗口计算：
 
-1. 打开 [Releases](https://github.com/xicunwus2025-sys/codex-led-widget/releases) 页面。
-2. 下载最新版本的 `.exe` 文件。
-3. 确保电脑上已经安装并登录 Codex。
-4. 双击运行 `.exe`。
-5. 如果 Windows 提示未知发布者：
-   - 点击 **更多信息**
-   - 点击 **仍要运行**
+| 状态 | 含义 |
+| --- | --- |
+| 可加快使用 | 当前 7 天剩余额度高于按时间推算的理想剩余额度 |
+| 正常 | 当前消耗与时间进度基本一致 |
+| 建议减速 | 当前 7 天剩余额度低于理想剩余额度 |
+| 接近耗尽 | 7 天剩余额度不高于 5% |
+| 无法判断 | Codex 没有提供足够的窗口时长或重置时间 |
 
----
+完整窗口中仍保留总剩余额度、5 小时窗口、7 天窗口、计划类型和节奏指标。
 
-## 🔴 额度颜色说明
+## 隐私边界
 
-| 颜色 | 含义 |
-|---|---|
-| 🟢 绿色 | 剩余额度大于等于 10% |
-| 🟡 黄色 | 剩余额度小于 10%，但大于 0 |
-| 🔴 红色 | 剩余额度为 0 |
+这个工具只在本机运行：
 
-额度状态会根据本机可读取到的 Codex 使用数据进行计算。
+- 不要求手动输入 Codex Token。
+- 不读取或展示认证 Token。
+- 不上传额度数据。
+- 不引入第三方服务。
+- 额度读取依赖本机 Codex CLI 的已登录状态。
 
----
+如果 Codex CLI 未登录、不可用或返回的数据结构不包含 Codex 额度，小组件会显示读取失败。
 
-## 🔐 隐私说明
-
-Codex LED Widget 设计目标是本地化、轻量、隐私友好。
-
-- 使用本机已有的 Codex 登录状态
-- 不需要你手动输入 Token
-- 不读取你的认证 Token
-- 不保存你的认证 Token
-- 不上传你的额度数据
-- 只显示 Codex 额度相关状态
-- 数据保留在你的电脑本地
-
----
-
-## 🛠️ 本地开发
-
-克隆仓库：
-
-```bash
-git clone https://github.com/xicunwus2025-sys/codex-led-widget.git
-cd codex-led-widget
-````
+## 本地开发
 
 安装依赖：
 
@@ -145,16 +88,16 @@ cd codex-led-widget
 npm install
 ```
 
-开发模式运行：
+开发运行：
 
 ```bash
 npm run dev
 ```
 
-启动应用：
+运行节奏判断和额度规范化测试：
 
 ```bash
-npm start
+npm run test:pace
 ```
 
 打包 Windows 便携版：
@@ -163,300 +106,40 @@ npm start
 npm run build
 ```
 
-打包完成后，生成文件会出现在 `dist` 文件夹中。
-
----
-
-## 📁 项目结构
+构建完成后，便携版可执行文件位于：
 
 ```txt
-codex-led-widget/
-├─ assets/          # 截图和图片资源
-├─ src/             # Electron 应用源码
-├─ package.json     # 项目配置和打包脚本
+dist/CodexQuota.exe
+```
+
+## 项目结构
+
+```txt
+codex-quota-widget/
+├─ assets/                  # 截图、应用图标和托盘图标
+├─ scripts/                 # 本地验证脚本
+├─ src/main/                # Electron 主进程、额度读取和节奏计算
+├─ src/renderer/            # 界面 HTML/CSS/JS
+├─ package.json             # 应用元数据和 electron-builder 配置
 └─ README.md
 ```
 
----
+## 发布说明
 
-## ❓ 常见问题
+当前发布版本：`v0.1.1`
 
-### 这个工具支持 macOS 或 Linux 吗？
+发布产物：
 
-目前主要面向 Windows 使用。如你需要可以联系我定制
+- `CodexQuota.exe`：Windows x64 便携版。
 
-### 我需要手动输入 Codex Token 吗？
+本项目当前未做代码签名，因此 Windows 可能显示未知发布者提示。这不是联网拦截，也不代表程序会上传数据；只是因为可执行文件没有商业代码签名证书。
 
-不需要。
-小组件会使用你本机已有的 Codex 登录状态，不需要你手动输入 Token。
+## 与原项目的关系
 
-### 为什么 Windows 会提示未知发布者？
+原项目：[xicunwus2025-sys/codex-led-widget](https://github.com/xicunwus2025-sys/codex-led-widget)
 
-因为当前应用还没有进行代码签名，所以 Windows 第一次运行时可能会显示安全提醒。
-如果你确认文件来源可信，可以点击 **更多信息** → **仍要运行**。
+本改造版保留 Electron 桌面小组件的基本方向，在此基础上重新整理了额度读取、节奏计算、紧凑悬浮球、托盘交互、图标和发布文档。仓库历史会保留原项目提交，方便追溯改造过程。
 
-### 它会上传我的使用数据吗？
-
-不会。
-这个工具的目标是读取并显示本机额度状态，不会上传你的额度数据。
-
----
-
-## 🧩 技术栈
-
-* Electron
-* JavaScript
-* HTML
-* CSS
-* electron-builder
-
----
-
-## 🗺️ 后续计划
-
-* [ ] 支持自定义刷新间隔
-* [ ] 增加系统托盘图标
-* [ ] 增加开机自启动选项
-* [ ] 增加更多小组件主题
-* [ ] 增加手动刷新按钮
-* [ ] 优化错误提示
-* [ ] 优化 Codex 未登录时的提示
-
----
-
-## 🤝 参与贡献
-
-欢迎提交 Issue 和 Pull Request。
-
-如果你发现 Bug、有功能建议，或者想改进界面，可以直接打开一个 Issue。
-支持：hkkangzhuo@qq.com
----
-
-## 📄 开源协议
+## License
 
 MIT License
-
----
-
-<br />
-
-# English
-
-Codex LED Widget is a small Windows desktop widget that shows your local Codex usage quota.
-
-It uses a transparent liquid-glass style interface and a simple red / yellow / green LED indicator, so you can quickly check whether your Codex quota is still available without repeatedly opening a terminal or checking manually.
-
----
-
-## ✨ Features
-
-* 🟢 **LED quota indicator**
-
-  * Green: remaining quota is 10% or higher
-  * Yellow: remaining quota is below 10% and above 0
-  * Red: remaining quota is 0
-
-* 🪟 **Liquid-glass desktop widget**
-
-  * Transparent floating window
-  * Clean and minimal visual style
-  * Small enough to stay out of your way while coding
-
-* 📌 **Always-on-top support**
-
-  * Pin the widget above other windows
-  * Unpin it whenever you do not need it
-
-* 🌐 **Chinese / English interface**
-
-  * Built-in language switch
-  * Suitable for both Chinese and English users
-
-* 🔄 **Automatic refresh**
-
-  * Reads Codex usage automatically
-  * Refreshes again after the quota reset time
-
-* 🔐 **Privacy-friendly**
-
-  * Uses your local Codex sign-in state
-  * Does not read, save, upload, or display your authentication token
-
----
-
-## 📸 Screenshots
-
-<p align="center">
-  <img src="assets/1.png" width="260" />
-  <img src="assets/2.png" width="260" />
-  <img src="assets/3.png" width="260" />
-</p>
-
-<p align="center">
-  <img src="assets/4.png" width="260" />
-  <img src="assets/5.png" width="260" />
-</p>
-
----
-
-## 🚀 Download
-
-Download the latest Windows `.exe` from the **Releases** page:
-
-👉 [Download from Releases](https://github.com/xicunwus2025-sys/codex-led-widget/releases)
-
-Current version: `v0.1.0`
-
----
-
-## 🖥️ Requirements
-
-* Windows 10 / Windows 11
-* Codex installed on your computer
-* Codex already signed in locally
-
----
-
-## 📦 How to Use
-
-1. Go to the [Releases](https://github.com/xicunwus2025-sys/codex-led-widget/releases) page.
-2. Download the latest `.exe` file.
-3. Make sure Codex is installed and signed in on your computer.
-4. Double-click the `.exe` to run the widget.
-5. If Windows shows an unknown publisher warning:
-
-   * Click **More info**
-   * Click **Run anyway**
-
----
-
-## 🔴 Quota Status
-
-| LED Color | Meaning                                  |
-| --------- | ---------------------------------------- |
-| 🟢 Green  | Remaining quota is 10% or higher         |
-| 🟡 Yellow | Remaining quota is below 10% but above 0 |
-| 🔴 Red    | Remaining quota is 0                     |
-
-The remaining quota is calculated from Codex usage data available on your local machine.
-
----
-
-## 🔐 Privacy
-
-Codex LED Widget is designed to be local and privacy-friendly.
-
-* It uses your existing local Codex sign-in state.
-* It does **not** ask you to enter a token.
-* It does **not** read, save, upload, or display your authentication token.
-* It only shows quota-related status information.
-* Your data stays on your computer.
-
----
-
-## 🛠️ Development
-
-Clone the repository:
-
-```bash
-git clone https://github.com/xicunwus2025-sys/codex-led-widget.git
-cd codex-led-widget
-```
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Run in development mode:
-
-```bash
-npm run dev
-```
-
-Start the app:
-
-```bash
-npm start
-```
-
-Build Windows portable executable:
-
-```bash
-npm run build
-```
-
-The output file will be generated in the `dist` folder.
-
----
-
-## 📁 Project Structure
-
-```txt
-codex-led-widget/
-├─ assets/          # Screenshots and images
-├─ src/             # Electron app source code
-├─ package.json     # Project config and build scripts
-└─ README.md
-```
-
----
-
-## ❓ FAQ
-
-### Does this work on macOS or Linux?
-
-Currently, this project is mainly built for Windows.If you need, you can contact me for customization.
-
-### Do I need to enter my Codex token?
-
-No. The widget uses your existing local Codex sign-in state. You do not need to enter any token.
-
-### Why does Windows show an unknown publisher warning?
-
-The app is not code-signed yet, so Windows may show a warning when opening it for the first time.
-You can click **More info** → **Run anyway** if you trust the downloaded file.
-
-### Does it upload my usage data?
-
-No. The widget is intended to read and display local quota status only.
-
----
-
-## 🧩 Tech Stack
-
-* Electron
-* JavaScript
-* HTML
-* CSS
-* electron-builder
-
----
-
-## 🗺️ Roadmap
-
-* [ ] Add custom refresh interval
-* [ ] Add tray icon
-* [ ] Add startup on boot option
-* [ ] Add more widget themes
-* [ ] Add manual refresh button
-* [ ] Improve error messages
-* [ ] Add better error handling when Codex is not signed in
-
----
-
-## 🤝 Contributing
-
-Issues and pull requests are welcome.
-
-If you find a bug, have a feature request, or want to improve the UI, feel free to open an issue.
-support:hkkangzhuo@qq.com
----
-
-## 📄 License
-
-MIT License
-
-```
-```

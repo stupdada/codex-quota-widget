@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Codex LED Widget</title>
+    <title>Codex Quota Widget</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body data-state="loading">
@@ -105,12 +105,16 @@
           <div class="orb-half orb-weekly">
             <div id="compactWeeklyFill" class="orb-fill weekly-fill"></div>
             <div id="compactWeeklyIdeal" class="orb-ideal" aria-hidden="true"></div>
+            <div id="compactWeeklyIdealSurface" class="orb-ideal-surface" aria-hidden="true"></div>
+            <div id="compactWeeklySurface" class="orb-actual-surface" aria-hidden="true"></div>
             <span class="orb-label">7d</span>
             <strong id="compactWeeklyText">--</strong>
           </div>
           <div class="orb-half orb-short">
             <div id="compactShortFill" class="orb-fill short-fill"></div>
             <div id="compactShortIdeal" class="orb-ideal" aria-hidden="true"></div>
+            <div id="compactShortIdealSurface" class="orb-ideal-surface" aria-hidden="true"></div>
+            <div id="compactShortSurface" class="orb-actual-surface" aria-hidden="true"></div>
             <span class="orb-label">5h</span>
             <strong id="compactShortText">--</strong>
           </div>
@@ -135,11 +139,13 @@
         <div class="compact-reset-info" aria-label="窗口重置时间">
           <div class="compact-reset-row compact-reset-short">
             <strong>5h</strong>
-            <span id="compactShortResetText">重置 --</span>
+            <span class="compact-reset-action">重置</span>
+            <span id="compactShortResetText">--</span>
           </div>
           <div class="compact-reset-row compact-reset-weekly">
             <strong>7d</strong>
-            <span id="compactWeeklyResetText">重置 --</span>
+            <span class="compact-reset-action">重置</span>
+            <span id="compactWeeklyResetText">--</span>
           </div>
         </div>
         <button id="compactResizeHandle" class="compact-resize-handle" title="缩放" aria-label="缩放"></button>

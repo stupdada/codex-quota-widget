@@ -6,75 +6,68 @@ const { buildPaceAdvice } = require("./pace-advice");
 const DEFAULT_TIMEOUT_MS = 12000;
 
 function resolveCodexPath() {
-  const localAppData = process.env.LOCALAPPDATA || "";
-  const codexBinRoot = path.join(localAppData, "OpenAI", "Codex", "bin");
-  const candidates = [
+  const codexBinRoot = process.env.LOCALAPPDATA
+    ? path.join(process.env.LOCALAPPDATA, "OpenAI", "Codex", "bin")
+    : null;
+  const directCandidates = [
     process.env.CODEX_CLI_PATH,
-    path.join(codexBinRoot, "codex.exe"),
-    ...findCodexBinCandidates(codexBinRoot)
+    codexBinRoot ? path.join(codexBinRoot, "codex.exe") : null
   ].filter(Boolean);
 
-  for (const candidate of candidates) {
+  for (const candidate of directCandidates) {
     if (fs.existsSync(candidate)) return candidate;
   }
+
+  const versionedCandidate = codexBinRoot ? findLatestCodexBinCandidate(codexBinRoot) : null;
+  if (versionedCandidate) return versionedCandidate;
 
   return "codex";
 }
 
-function findCodexBinCandidates(codexBinRoot) {
-  if (!codexBinRoot || !fs.existsSync(codexBinRoot)) return [];
+function findLatestCodexBinCandidate(codexBinRoot) {
+  if (!fs.existsSync(codexBinRoot)) return null;
 
-  try {
-    return fs
-      .readdirSync(codexBinRoot, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => path.join(codexBinRoot, entry.name, "codex.exe"))
-      .filter((candidate) => fs.existsSync(candidate))
-      .sort((a, b) => {
-        const aTime = fs.statSync(a).mtimeMs;
-        const bTime = fs.statSync(b).mtimeMs;
-        return bTime - aTime;
-      });
-  } catch {
-    return [];
-  }
+  return fs
+    .readdirSync(codexBinRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(codexBinRoot, entry.name, "codex.exe"))
+    .filter((candidate) => fs.existsSync(candidate))
+    .sort((a, b) => {
+      const aTime = fs.statSync(a).mtimeMs;
+      const bTime = fs.statSync(b).mtimeMs;
+      return bTime - aTime;
+    })[0] ?? null;
 }
 
 async function getQuota() {
   const response = await requestRateLimits();
-  const snapshot =
-    response.rateLimitsByLimitId?.codex ||
-    response.rateLimits ||
-    firstSnapshot(response.rateLimitsByLimitId);
+  const snapshot = response.rateLimitsByLimitId?.codex;
 
   if (!snapshot) {
-    throw new Error("Codex did not return a rate-limit snapshot.");
+    throw new Error("Codex did not return the codex rate-limit snapshot.");
   }
 
   return normalizeSnapshot(snapshot);
-}
-
-function firstSnapshot(map) {
-  if (!map || typeof map !== "object") return null;
-  const firstKey = Object.keys(map)[0];
-  return firstKey ? map[firstKey] : null;
 }
 
 function normalizeSnapshot(snapshot) {
   const primary = normalizeWindow(snapshot.primary);
   const secondary = normalizeWindow(snapshot.secondary);
   const activeWindow = primary || secondary;
+  if (!activeWindow) {
+    throw new Error("Codex rate-limit snapshot does not include a usable quota window.");
+  }
   const normalized = {
-    limitId: snapshot.limitId || "codex",
-    limitName: snapshot.limitName || "Codex",
-    planType: snapshot.planType || "unknown",
-    reachedType: snapshot.rateLimitReachedType || null,
-    credits: snapshot.credits || null,
+    limitId: snapshot.limitId ?? "codex",
+    limitName: snapshot.limitName ?? "Codex",
+    planType: snapshot.planType ?? "unknown",
+    reachedType: snapshot.rateLimitReachedType ?? null,
+    credits: snapshot.credits ?? null,
     primary,
     secondary,
-    remainingPercent: activeWindow ? activeWindow.remainingPercent : null,
-    usedPercent: activeWindow ? activeWindow.usedPercent : null,
-    resetsAt: activeWindow ? activeWindow.resetsAt : null,
+    remainingPercent: activeWindow.remainingPercent,
+    usedPercent: activeWindow.usedPercent,
+    resetsAt: activeWindow.resetsAt,
     fetchedAt: new Date().toISOString()
   };
 
@@ -86,17 +79,33 @@ function normalizeSnapshot(snapshot) {
 
 function normalizeWindow(window) {
   if (!window) return null;
-  const usedPercent = clampPercent(Number(window.usedPercent || 0));
+  const usedPercent = normalizeUsedPercent(window.usedPercent);
   return {
     usedPercent,
     remainingPercent: clampPercent(100 - usedPercent),
     windowDurationMins: window.windowDurationMins ?? null,
-    resetsAt: window.resetsAt ? new Date(window.resetsAt * 1000).toISOString() : null
+    resetsAt: normalizeResetTime(window.resetsAt)
   };
 }
 
+function normalizeUsedPercent(value) {
+  const usedPercent = Number(value);
+  if (!Number.isFinite(usedPercent)) {
+    throw new Error("Codex quota window is missing a numeric usedPercent.");
+  }
+  return clampPercent(usedPercent);
+}
+
+function normalizeResetTime(value) {
+  if (value === null || value === undefined) return null;
+  const timestampSeconds = Number(value);
+  if (!Number.isFinite(timestampSeconds)) {
+    throw new Error("Codex quota window has an invalid reset timestamp.");
+  }
+  return new Date(timestampSeconds * 1000).toISOString();
+}
+
 function clampPercent(value) {
-  if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
@@ -166,9 +175,9 @@ function requestRateLimits() {
       try {
         await send("initialize", {
           clientInfo: {
-            name: "codex-led-widget",
-            title: "Codex LED Widget",
-            version: "0.1.0"
+            name: "codex-quota-widget",
+            title: "Codex Quota Widget",
+            version: "0.1.1"
           },
           capabilities: null
         });
@@ -187,7 +196,8 @@ function handleMessage(line, pending) {
   let message;
   try {
     message = JSON.parse(line);
-  } catch {
+  } catch (error) {
+    rejectPendingRequests(pending, new Error(`Codex app-server returned invalid JSON: ${error.message}`));
     return;
   }
 
@@ -202,6 +212,14 @@ function handleMessage(line, pending) {
     request.reject(new Error(message.error.message || JSON.stringify(message.error)));
   } else {
     request.resolve(message.result);
+  }
+}
+
+function rejectPendingRequests(pending, error) {
+  for (const [id, request] of pending) {
+    clearTimeout(request.timer);
+    pending.delete(id);
+    request.reject(error);
   }
 }
 

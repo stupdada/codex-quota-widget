@@ -1,6 +1,8 @@
 node_modules/
 dist/
 out/
+artifacts/
+assets/icon-prep/
 .env
 .env.*
 *.log

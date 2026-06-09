@@ -11,7 +11,6 @@ contextBridge.exposeInMainWorld("codexQuota", {
   getCompactScale: () => ipcRenderer.invoke("window:compactScale:get"),
   setCompactScale: (value) => ipcRenderer.invoke("window:compactScale:set", value),
   moveCompactWindow: (deltaX, deltaY) => ipcRenderer.invoke("window:compactMove", deltaX, deltaY),
-  openCodex: () => ipcRenderer.invoke("external:openCodex"),
   onRefresh: (callback) => {
     ipcRenderer.on("quota:refresh", callback);
   },

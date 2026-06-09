@@ -480,7 +480,7 @@ body[data-state="danger"] .liquid-fill {
   left: 0;
   display: none;
   width: 210px;
-  height: 252px;
+  height: 264px;
   color: #eef7f1;
   background: transparent;
   transform: scale(var(--compact-scale));
@@ -514,11 +514,17 @@ body[data-state="danger"] .liquid-fill {
 
 .orb-weekly {
   left: 0;
+  --actual-surface-rim: #e94942;
+  --actual-surface-cap: #f24e46;
+  --actual-surface-body: #fa5248;
   background: rgba(255, 85, 72, 0.24);
 }
 
 .orb-short {
   right: 0;
+  --actual-surface-rim: #7949c9;
+  --actual-surface-cap: #804dd0;
+  --actual-surface-body: #8953da;
   background: rgba(141, 85, 223, 0.26);
 }
 
@@ -540,38 +546,78 @@ body[data-state="danger"] .liquid-fill {
   z-index: 2;
   height: 0%;
   border: 0;
+  pointer-events: none;
   transition: height 460ms ease;
 }
 
-.orb-fill::before,
-.orb-fill::after,
-.orb-ideal::before,
-.orb-ideal::after {
+.orb-ideal-surface,
+.orb-actual-surface {
   position: absolute;
-  right: -18%;
-  left: -18%;
-  height: 18px;
-  background: inherit;
+  bottom: 0%;
+  width: calc(var(--surface-width, 100%) + 6px);
+  height: var(--surface-height, 16px);
+  overflow: hidden;
+  opacity: 1;
   border-radius: 50%;
-  content: "";
   pointer-events: none;
+  transition: bottom 460ms ease;
 }
 
-.orb-fill::before,
-.orb-ideal::before {
-  top: -9px;
-  transform: translateX(-7%) rotate(-3deg);
+.orb-ideal-surface::before,
+.orb-actual-surface::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 62%;
+  border-radius: 50% 50% 44% 44% / 100% 100% 48% 48%;
+  content: "";
 }
 
-.orb-fill::after,
-.orb-ideal::after {
-  top: -7px;
-  opacity: 0.72;
-  transform: translateX(14%) rotate(4deg);
+.orb-weekly .orb-ideal-surface,
+.orb-weekly .orb-actual-surface {
+  right: -6px;
+  left: auto;
+}
+
+.orb-short .orb-ideal-surface,
+.orb-short .orb-actual-surface {
+  right: auto;
+  left: -6px;
+}
+
+.orb-ideal-surface {
+  z-index: 2;
+  background: var(--ideal-surface-body);
+}
+
+.orb-ideal-surface::before {
+  background: linear-gradient(
+    180deg,
+    var(--ideal-surface-rim) 0%,
+    var(--ideal-surface-cap) 58%,
+    var(--ideal-surface-body) 100%
+  );
+}
+
+.orb-actual-surface {
+  z-index: 3;
+  background: var(--actual-surface-body);
+}
+
+.orb-actual-surface::before {
+  background: linear-gradient(
+    180deg,
+    var(--actual-surface-rim) 0%,
+    var(--actual-surface-cap) 58%,
+    var(--actual-surface-body) 100%
+  );
 }
 
 .orb-fill[hidden],
-.orb-ideal[hidden] {
+.orb-ideal[hidden],
+.orb-ideal-surface[hidden],
+.orb-actual-surface[hidden] {
   display: none;
 }
 
@@ -579,8 +625,20 @@ body[data-state="danger"] .liquid-fill {
   background: rgba(255, 190, 178, 0.38);
 }
 
+.orb-weekly .orb-ideal-surface {
+  --ideal-surface-rim: #f36a61;
+  --ideal-surface-cap: #ff766c;
+  --ideal-surface-body: #ff867c;
+}
+
 .orb-short .orb-ideal {
   background: rgba(215, 186, 255, 0.36);
+}
+
+.orb-short .orb-ideal-surface {
+  --ideal-surface-rim: #9a59dd;
+  --ideal-surface-cap: #a765ea;
+  --ideal-surface-body: #b178ec;
 }
 
 .orb-divider {
@@ -740,12 +798,15 @@ body[data-state="danger"] .liquid-fill {
 .compact-reset-info {
   position: absolute;
   top: 216px;
-  right: 36px;
-  left: 14px;
+  right: 8px;
+  left: 8px;
   z-index: 7;
   display: grid;
-  gap: 4px;
+  gap: 3px;
+  padding: 5px 8px 6px;
+  border-radius: 14px;
   color: rgba(15, 16, 18, 0.88);
+  background: rgba(255, 255, 255, 0.58);
   font-size: 12px;
   line-height: 16px;
   user-select: none;
@@ -760,7 +821,8 @@ body[data-state="danger"] .liquid-fill {
 
 .compact-reset-row {
   display: grid;
-  grid-template-columns: 30px 1fr;
+  grid-template-columns: 32px 42px 100px;
+  column-gap: 0;
   align-items: center;
   min-width: 0;
   user-select: none;
@@ -780,10 +842,17 @@ body[data-state="danger"] .liquid-fill {
   overflow: hidden;
   font-size: 14px;
   font-weight: 800;
+  text-align: left;
   text-overflow: ellipsis;
   user-select: none;
   white-space: nowrap;
   -webkit-user-select: none;
+}
+
+.compact-reset-row span:last-child {
+  overflow: visible;
+  font-variant-numeric: tabular-nums;
+  text-overflow: clip;
 }
 
 .compact-reset-short strong {

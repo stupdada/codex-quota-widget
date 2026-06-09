@@ -10,54 +10,75 @@ const state = {
 };
 
 const COMPACT_SCALE_LIMITS = { min: 0.33, max: 1.8 };
-const AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const AUTO_REFRESH_INTERVAL_MS = 3 * 60 * 1000;
+
+function requiredElement(id) {
+  const element = document.getElementById(id);
+  if (!element) {
+    throw new Error(`Missing required DOM element: #${id}`);
+  }
+  return element;
+}
+
+function requiredElements(selector) {
+  const elements = document.querySelectorAll(selector);
+  if (elements.length === 0) {
+    throw new Error(`Missing required DOM elements: ${selector}`);
+  }
+  return elements;
+}
 
 const els = {
   body: document.body,
-  trafficLight: document.getElementById("trafficLight"),
-  brandName: document.getElementById("brandName"),
-  stateText: document.getElementById("stateText"),
-  langBtn: document.getElementById("langBtn"),
-  compactBtn: document.getElementById("compactBtn"),
-  pinBtn: document.getElementById("pinBtn"),
-  refreshBtn: document.getElementById("refreshBtn"),
-  minimizeBtn: document.getElementById("minimizeBtn"),
-  closeBtn: document.getElementById("closeBtn"),
-  liquidMeter: document.getElementById("liquidMeter"),
-  liquidFill: document.getElementById("liquidFill"),
-  remaining: document.getElementById("remaining"),
-  remainingLabel: document.getElementById("remainingLabel"),
-  compactOrb: document.getElementById("compactOrb"),
-  compactWeeklyFill: document.getElementById("compactWeeklyFill"),
-  compactShortFill: document.getElementById("compactShortFill"),
-  compactWeeklyIdeal: document.getElementById("compactWeeklyIdeal"),
-  compactShortIdeal: document.getElementById("compactShortIdeal"),
-  compactWeeklyText: document.getElementById("compactWeeklyText"),
-  compactShortText: document.getElementById("compactShortText"),
-  compactExpandBtn: document.getElementById("compactExpandBtn"),
-  compactCloseBtn: document.getElementById("compactCloseBtn"),
-  compactResizeHandle: document.getElementById("compactResizeHandle"),
-  compactAdviceText: document.getElementById("compactAdviceText"),
-  compactShortResetText: document.getElementById("compactShortResetText"),
-  compactWeeklyResetText: document.getElementById("compactWeeklyResetText"),
-  primaryLabel: document.getElementById("primaryLabel"),
-  primaryText: document.getElementById("primaryText"),
-  secondaryLabel: document.getElementById("secondaryLabel"),
-  secondaryText: document.getElementById("secondaryText"),
-  planLabel: document.getElementById("planLabel"),
-  planText: document.getElementById("planText"),
-  paceTitle: document.getElementById("paceTitle"),
-  paceBadge: document.getElementById("paceBadge"),
-  weeklyPaceLabel: document.getElementById("weeklyPaceLabel"),
-  weeklyPaceText: document.getElementById("weeklyPaceText"),
-  actualPaceLabel: document.getElementById("actualPaceLabel"),
-  actualPaceText: document.getElementById("actualPaceText"),
-  idealPaceLabel: document.getElementById("idealPaceLabel"),
-  idealPaceText: document.getElementById("idealPaceText"),
-  deltaPaceLabel: document.getElementById("deltaPaceLabel"),
-  deltaPaceText: document.getElementById("deltaPaceText"),
-  statusDot: document.getElementById("statusDot"),
-  statusText: document.getElementById("statusText")
+  trafficLight: requiredElement("trafficLight"),
+  brandName: requiredElement("brandName"),
+  stateText: requiredElement("stateText"),
+  langBtn: requiredElement("langBtn"),
+  compactBtn: requiredElement("compactBtn"),
+  pinBtn: requiredElement("pinBtn"),
+  refreshBtn: requiredElement("refreshBtn"),
+  minimizeBtn: requiredElement("minimizeBtn"),
+  closeBtn: requiredElement("closeBtn"),
+  liquidMeter: requiredElement("liquidMeter"),
+  liquidFill: requiredElement("liquidFill"),
+  remaining: requiredElement("remaining"),
+  remainingLabel: requiredElement("remainingLabel"),
+  compactOrb: requiredElement("compactOrb"),
+  compactWeeklyFill: requiredElement("compactWeeklyFill"),
+  compactShortFill: requiredElement("compactShortFill"),
+  compactWeeklyIdeal: requiredElement("compactWeeklyIdeal"),
+  compactShortIdeal: requiredElement("compactShortIdeal"),
+  compactWeeklyIdealSurface: requiredElement("compactWeeklyIdealSurface"),
+  compactShortIdealSurface: requiredElement("compactShortIdealSurface"),
+  compactWeeklySurface: requiredElement("compactWeeklySurface"),
+  compactShortSurface: requiredElement("compactShortSurface"),
+  compactWeeklyText: requiredElement("compactWeeklyText"),
+  compactShortText: requiredElement("compactShortText"),
+  compactExpandBtn: requiredElement("compactExpandBtn"),
+  compactCloseBtn: requiredElement("compactCloseBtn"),
+  compactResizeHandle: requiredElement("compactResizeHandle"),
+  compactAdviceText: requiredElement("compactAdviceText"),
+  compactResetActions: requiredElements(".compact-reset-action"),
+  compactShortResetText: requiredElement("compactShortResetText"),
+  compactWeeklyResetText: requiredElement("compactWeeklyResetText"),
+  primaryLabel: requiredElement("primaryLabel"),
+  primaryText: requiredElement("primaryText"),
+  secondaryLabel: requiredElement("secondaryLabel"),
+  secondaryText: requiredElement("secondaryText"),
+  planLabel: requiredElement("planLabel"),
+  planText: requiredElement("planText"),
+  paceTitle: requiredElement("paceTitle"),
+  paceBadge: requiredElement("paceBadge"),
+  weeklyPaceLabel: requiredElement("weeklyPaceLabel"),
+  weeklyPaceText: requiredElement("weeklyPaceText"),
+  actualPaceLabel: requiredElement("actualPaceLabel"),
+  actualPaceText: requiredElement("actualPaceText"),
+  idealPaceLabel: requiredElement("idealPaceLabel"),
+  idealPaceText: requiredElement("idealPaceText"),
+  deltaPaceLabel: requiredElement("deltaPaceLabel"),
+  deltaPaceText: requiredElement("deltaPaceText"),
+  statusDot: requiredElement("statusDot"),
+  statusText: requiredElement("statusText")
 };
 
 const copy = {
@@ -160,21 +181,19 @@ function t(path) {
 }
 
 function setText(element, value) {
-  if (element) element.textContent = value;
+  element.textContent = value;
+}
+
+function setTextAll(elements, value) {
+  elements.forEach((element) => setText(element, value));
 }
 
 function setAttr(element, name, value) {
-  if (element) element.setAttribute(name, value);
+  element.setAttribute(name, value);
 }
 
 function percentText(value) {
   return Number.isFinite(Number(value)) ? `${Math.round(Number(value))}%` : "--";
-}
-
-function percentCss(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return null;
-  return `${Math.min(100, Math.max(0, number))}%`;
 }
 
 function signedPercentText(value) {
@@ -200,8 +219,15 @@ function formatReset(value) {
   return `${t("reset")} ${month}/${day} ${hour}:${minute}`;
 }
 
-function compactResetText(window) {
-  return window?.resetsAt ? formatReset(window.resetsAt) : `${t("reset")} --`;
+function compactResetTime(window) {
+  if (!window?.resetsAt) return "--";
+  const date = new Date(window.resetsAt);
+  if (!Number.isFinite(date.getTime())) return "--";
+  const month = pad2(date.getMonth() + 1);
+  const day = pad2(date.getDate());
+  const hour = pad2(date.getHours());
+  const minute = pad2(date.getMinutes());
+  return `${month}/${day} ${hour}:${minute}`;
 }
 
 function pad2(value) {
@@ -227,6 +253,7 @@ function renderStaticCopy() {
   setText(els.actualPaceLabel, t("actualRemaining"));
   setText(els.idealPaceLabel, t("idealRemaining"));
   setText(els.deltaPaceLabel, t("paceDelta"));
+  setTextAll(els.compactResetActions, t("reset"));
   setText(els.langBtn, state.lang === "zh" ? "EN" : "中");
   renderCompactButton(state.compact);
   setAttr(els.refreshBtn, "title", t("refresh"));
@@ -285,17 +312,45 @@ function renderCompactAdvice(advice) {
 }
 
 function setFillHeight(element, value) {
-  if (!element) return;
-  const fillHeight = percentCss(value);
-  element.hidden = !fillHeight || fillHeight === "0%";
-  element.style.height = fillHeight || "0%";
+  const geometry = surfaceGeometry(value);
+  element.hidden = !geometry || geometry.bottom === "0%";
+  element.style.height = geometry?.bodyHeight || "0%";
 }
 
-function setIdealMarker(element, value) {
-  if (!element) return;
-  const idealHeight = percentCss(value);
-  element.hidden = !idealHeight;
-  element.style.height = idealHeight || "0%";
+function setIdealMarker(element, surfaceElement, value) {
+  const geometry = surfaceGeometry(value);
+  element.hidden = !geometry || geometry.bottom === "0%";
+  element.style.height = geometry?.bodyHeight || "0%";
+  element.style.removeProperty("--ideal-position");
+  setSurfaceLevel(surfaceElement, value);
+}
+
+function surfaceGeometry(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  const level = Math.min(100, Math.max(0, number));
+  const distanceFromCenter = Math.abs(level - 50) / 50;
+  const widthRatio = Math.sqrt(Math.max(0, 1 - distanceFromCenter * distanceFromCenter));
+  const edgeWidthBoost = distanceFromCenter * distanceFromCenter * 18;
+  const minWidthPercent = 32 + distanceFromCenter * distanceFromCenter * 10;
+  const widthPercent = Math.min(100, Math.max(minWidthPercent, widthRatio * 100 + edgeWidthBoost));
+  const heightPx = 8 + widthRatio * 4;
+  const halfHeightPx = heightPx / 2;
+  return {
+    bottom: `${level}%`,
+    bodyHeight: `${level}%`,
+    surfaceBottom: `max(0px, calc(${level}% - ${halfHeightPx}px))`,
+    width: `${widthPercent}%`,
+    height: `${heightPx}px`
+  };
+}
+
+function setSurfaceLevel(element, value) {
+  const geometry = surfaceGeometry(value);
+  element.hidden = !geometry || geometry.bottom === "0%";
+  element.style.bottom = geometry?.surfaceBottom || "0%";
+  element.style.setProperty("--surface-width", geometry?.width || "18%");
+  element.style.setProperty("--surface-height", geometry?.height || "10px");
 }
 
 function renderCompactOrb(quota) {
@@ -306,12 +361,14 @@ function renderCompactOrb(quota) {
 
   setFillHeight(els.compactWeeklyFill, weekly?.remainingPercent);
   setFillHeight(els.compactShortFill, short?.remainingPercent);
-  setIdealMarker(els.compactWeeklyIdeal, weekly?.idealRemainingPercent);
-  setIdealMarker(els.compactShortIdeal, short?.idealRemainingPercent);
+  setIdealMarker(els.compactWeeklyIdeal, els.compactWeeklyIdealSurface, weekly?.idealRemainingPercent);
+  setIdealMarker(els.compactShortIdeal, els.compactShortIdealSurface, short?.idealRemainingPercent);
+  setSurfaceLevel(els.compactWeeklySurface, weekly?.remainingPercent);
+  setSurfaceLevel(els.compactShortSurface, short?.remainingPercent);
   setText(els.compactWeeklyText, weeklyPercent);
   setText(els.compactShortText, shortPercent);
-  setText(els.compactShortResetText, compactResetText(quota?.primary));
-  setText(els.compactWeeklyResetText, compactResetText(quota?.secondary));
+  setText(els.compactShortResetText, compactResetTime(quota?.primary));
+  setText(els.compactWeeklyResetText, compactResetTime(quota?.secondary));
 }
 
 function renderLoading() {
@@ -407,6 +464,10 @@ function renderCompactScale(value) {
   document.documentElement.style.setProperty("--compact-scale", String(state.compactScale));
 }
 
+function reportInteractionError(error) {
+  console.error("Codex Quota Widget interaction failed:", error);
+}
+
 function renderCompactButton(isCompact) {
   const label = isCompact ? t("expand") : t("compact");
   els.compactBtn.classList.toggle("active", Boolean(isCompact));
@@ -436,7 +497,7 @@ function handleCompactResize(event) {
   const dominantDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
   const nextScale = clampCompactScale(state.resizing.startScale + dominantDelta / 180);
   renderCompactScale(nextScale);
-  window.codexQuota.setCompactScale(nextScale).then(renderCompactScale).catch(() => {});
+  window.codexQuota.setCompactScale(nextScale).then(renderCompactScale).catch(reportInteractionError);
 }
 
 function stopCompactResize() {
@@ -444,7 +505,7 @@ function stopCompactResize() {
   window.removeEventListener("mousemove", handleCompactResize);
   els.body.classList.remove("is-resizing");
   state.resizing = null;
-  window.codexQuota.setCompactScale(state.compactScale).then(renderCompactScale).catch(() => {});
+  window.codexQuota.setCompactScale(state.compactScale).then(renderCompactScale).catch(reportInteractionError);
 }
 
 function startCompactMove(event) {
@@ -466,7 +527,7 @@ function handleCompactMove(event) {
   const deltaY = event.screenY - state.moving.lastY;
   state.moving.lastX = event.screenX;
   state.moving.lastY = event.screenY;
-  window.codexQuota.moveCompactWindow(deltaX, deltaY).catch(() => {});
+  window.codexQuota.moveCompactWindow(deltaX, deltaY).catch(reportInteractionError);
 }
 
 function stopCompactMove() {
