@@ -5,6 +5,7 @@ const state = {
   compact: false,
   compactScale: 1,
   resizing: null,
+  moving: null,
   loading: false
 };
 
@@ -25,6 +26,7 @@ const els = {
   liquidFill: document.getElementById("liquidFill"),
   remaining: document.getElementById("remaining"),
   remainingLabel: document.getElementById("remainingLabel"),
+  compactOrb: document.getElementById("compactOrb"),
   compactWeeklyFill: document.getElementById("compactWeeklyFill"),
   compactShortFill: document.getElementById("compactShortFill"),
   compactWeeklyIdeal: document.getElementById("compactWeeklyIdeal"),
@@ -440,6 +442,35 @@ function stopCompactResize() {
   window.codexQuota.setCompactScale(state.compactScale).then(renderCompactScale).catch(() => {});
 }
 
+function startCompactMove(event) {
+  if (!state.compact || event.button !== 0) return;
+  event.preventDefault();
+  state.moving = {
+    lastX: event.screenX,
+    lastY: event.screenY
+  };
+  els.body.classList.add("is-moving");
+  window.addEventListener("mousemove", handleCompactMove);
+  window.addEventListener("mouseup", stopCompactMove, { once: true });
+}
+
+function handleCompactMove(event) {
+  if (!state.moving) return;
+  event.preventDefault();
+  const deltaX = event.screenX - state.moving.lastX;
+  const deltaY = event.screenY - state.moving.lastY;
+  state.moving.lastX = event.screenX;
+  state.moving.lastY = event.screenY;
+  window.codexQuota.moveCompactWindow(deltaX, deltaY).catch(() => {});
+}
+
+function stopCompactMove() {
+  if (!state.moving) return;
+  window.removeEventListener("mousemove", handleCompactMove);
+  els.body.classList.remove("is-moving");
+  state.moving = null;
+}
+
 els.langBtn.addEventListener("click", () => {
   state.lang = state.lang === "zh" ? "en" : "zh";
   if (state.quota) {
@@ -463,6 +494,7 @@ els.compactExpandBtn.addEventListener("click", async () => {
 });
 
 els.compactCloseBtn.addEventListener("click", () => window.codexQuota.close());
+els.compactOrb.addEventListener("mousedown", startCompactMove);
 els.compactResizeHandle.addEventListener("mousedown", startCompactResize);
 
 els.refreshBtn.addEventListener("click", refreshQuota);

@@ -147,6 +147,15 @@ function setCompactScale(value) {
   return compactScale;
 }
 
+function moveCompactWindow(deltaX, deltaY) {
+  if (!mainWindow || !isCompactMode) return null;
+  const bounds = mainWindow.getBounds();
+  const x = Math.round(bounds.x + Number(deltaX || 0));
+  const y = Math.round(bounds.y + Number(deltaY || 0));
+  mainWindow.setPosition(x, y, false);
+  return { x, y };
+}
+
 function toggleWindow() {
   if (!mainWindow) return;
   if (mainWindow.isVisible()) {
@@ -170,6 +179,7 @@ app.whenReady().then(() => {
   ipcMain.handle("window:compact:set", (_event, value) => setCompactMode(value));
   ipcMain.handle("window:compactScale:get", () => compactScale);
   ipcMain.handle("window:compactScale:set", (_event, value) => setCompactScale(value));
+  ipcMain.handle("window:compactMove", (_event, deltaX, deltaY) => moveCompactWindow(deltaX, deltaY));
   ipcMain.handle("external:openCodex", () => {
     shell.openPath(path.join(process.env.LOCALAPPDATA || "", "OpenAI", "Codex", "bin", "codex.exe"));
   });

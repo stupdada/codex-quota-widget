@@ -485,7 +485,7 @@ body[data-state="danger"] .liquid-fill {
   background: transparent;
   transform: scale(var(--compact-scale));
   transform-origin: top left;
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
 }
 
 .compact-orb {
@@ -499,6 +499,7 @@ body[data-state="danger"] .liquid-fill {
   border-radius: 50%;
   background: transparent;
   box-shadow: none;
+  -webkit-app-region: no-drag;
 }
 
 .orb-half {
@@ -595,7 +596,7 @@ body[data-state="danger"] .liquid-fill {
 
 .compact-controls {
   position: absolute;
-  top: 7px;
+  top: 0;
   right: 12px;
   z-index: 8;
   display: flex;
@@ -612,22 +613,23 @@ body[data-state="danger"] .liquid-fill {
   width: 28px;
   height: 28px;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.68);
   border-radius: 999px;
-  color: rgba(238, 247, 241, 0.92);
-  background: rgba(255, 255, 255, 0.14);
+  color: #24272c;
+  background: rgba(255, 255, 255, 0.82);
   box-shadow: none;
   cursor: pointer;
 }
 
 .compact-control-button:hover {
-  border-color: rgba(255, 255, 255, 0.56);
-  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.94);
 }
 
 .compact-control-button.danger:hover {
   border-color: rgba(255, 107, 107, 0.58);
-  background: rgba(255, 107, 107, 0.2);
+  background: rgba(255, 107, 107, 0.42);
+  color: #ffffff;
 }
 
 .compact-control-button svg {
@@ -711,7 +713,7 @@ body[data-state="danger"] .liquid-fill {
   z-index: 7;
   display: grid;
   gap: 4px;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(15, 16, 18, 0.88);
   font-size: 12px;
   line-height: 16px;
   opacity: 0;
@@ -730,7 +732,7 @@ body[data-state="danger"] .liquid-fill {
 }
 
 .compact-reset-row strong {
-  color: #ffffff;
+  color: #111315;
   font-size: 15px;
   font-weight: 900;
 }
@@ -743,11 +745,11 @@ body[data-state="danger"] .liquid-fill {
 }
 
 .compact-reset-short strong {
-  color: #d2adff;
+  color: #8d55df;
 }
 
 .compact-reset-weekly strong {
-  color: #ffac9f;
+  color: #ff5548;
 }
 
 .compact-shell:hover .compact-controls,
