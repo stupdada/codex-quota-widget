@@ -7,9 +7,11 @@ const DEFAULT_TIMEOUT_MS = 12000;
 
 function resolveCodexPath() {
   const localAppData = process.env.LOCALAPPDATA || "";
+  const codexBinRoot = path.join(localAppData, "OpenAI", "Codex", "bin");
   const candidates = [
     process.env.CODEX_CLI_PATH,
-    path.join(localAppData, "OpenAI", "Codex", "bin", "codex.exe")
+    path.join(codexBinRoot, "codex.exe"),
+    ...findCodexBinCandidates(codexBinRoot)
   ].filter(Boolean);
 
   for (const candidate of candidates) {
@@ -17,6 +19,25 @@ function resolveCodexPath() {
   }
 
   return "codex";
+}
+
+function findCodexBinCandidates(codexBinRoot) {
+  if (!codexBinRoot || !fs.existsSync(codexBinRoot)) return [];
+
+  try {
+    return fs
+      .readdirSync(codexBinRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(codexBinRoot, entry.name, "codex.exe"))
+      .filter((candidate) => fs.existsSync(candidate))
+      .sort((a, b) => {
+        const aTime = fs.statSync(a).mtimeMs;
+        const bTime = fs.statSync(b).mtimeMs;
+        return bTime - aTime;
+      });
+  } catch {
+    return [];
+  }
 }
 
 async function getQuota() {
@@ -184,4 +205,4 @@ function handleMessage(line, pending) {
   }
 }
 
-module.exports = { getQuota, normalizeSnapshot };
+module.exports = { getQuota, normalizeSnapshot, resolveCodexPath };

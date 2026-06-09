@@ -1,6 +1,7 @@
 const state = {
   lang: "zh",
   quota: null,
+  error: null,
   loading: false
 };
 
@@ -54,6 +55,7 @@ const copy = {
     statusLoading: "正在读取 Codex 额度...",
     statusReady: "额度已更新",
     statusError: "无法读取 Codex 额度",
+    authRequired: "Codex CLI 需要登录后才能读取额度",
     paceTitle: "使用节奏建议",
     weeklyPace: "7天节奏",
     shortPace: "短窗",
@@ -94,6 +96,7 @@ const copy = {
     statusLoading: "Reading Codex quota...",
     statusReady: "Quota updated",
     statusError: "Unable to read Codex quota",
+    authRequired: "Codex CLI must be signed in before quota can be read",
     paceTitle: "Usage pace advice",
     weeklyPace: "7-day pace",
     shortPace: "Short window",
@@ -175,6 +178,7 @@ function renderStaticCopy() {
 
 function renderQuota(quota) {
   state.quota = quota;
+  state.error = null;
   renderStaticCopy();
 
   const remaining = quota?.remainingPercent;
@@ -215,18 +219,28 @@ function renderLoading() {
 }
 
 function renderError(error) {
+  state.quota = null;
+  state.error = error;
   renderStaticCopy();
   els.body.dataset.state = "danger";
   els.trafficLight.className = "traffic-light danger";
   els.statusDot.className = "status-dot danger";
   setText(els.stateText, t("error"));
-  setText(els.statusText, `${t("statusError")}：${error.message}`);
+  setText(els.statusText, `${t("statusError")}：${friendlyErrorMessage(error)}`);
   setText(els.remaining, "--%");
   els.liquidFill.style.height = "0%";
   setText(els.primaryText, "--");
   setText(els.secondaryText, "--");
   setText(els.planText, "--");
   renderPaceAdvice(null);
+}
+
+function friendlyErrorMessage(error) {
+  const message = error?.message || "";
+  if (message.toLowerCase().includes("authentication required")) {
+    return t("authRequired");
+  }
+  return message || t("unknown");
 }
 
 async function refreshQuota() {
@@ -260,6 +274,8 @@ els.langBtn.addEventListener("click", () => {
   state.lang = state.lang === "zh" ? "en" : "zh";
   if (state.quota) {
     renderQuota(state.quota);
+  } else if (state.error) {
+    renderError(state.error);
   } else {
     renderLoading();
   }
