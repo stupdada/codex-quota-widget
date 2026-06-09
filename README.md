@@ -4,7 +4,6 @@ Codex Quota Widget 是一个 Windows 桌面悬浮小组件，用来查看本机 
 
 本项目改造自 [xicunwus2025-sys/codex-led-widget](https://github.com/xicunwus2025-sys/codex-led-widget)。原项目提供了透明玻璃风格的 Codex 额度窗口，本改造版重点补上了更适合日常开发盯盘的紧凑悬浮球、7 天节奏判断、系统托盘和发布前源码清理。
 
-![Codex Quota Widget compact view](assets/codex-quota-compact.png)
 
 ## 主要改造
 
@@ -15,8 +14,6 @@ Codex Quota Widget 是一个 Windows 桌面悬浮小组件，用来查看本机 
 - 鼠标悬停时显示窗口重置时间、展开按钮、隐藏按钮和缩放手柄。
 - 增加系统托盘入口，可显示/隐藏、刷新、切换紧凑模式、切换置顶、退出。
 - 替换应用图标和托盘图标，打包产物使用 `CodexQuota.exe`。
-- 收紧额度读取逻辑，只接受 Codex 明确返回的 `rateLimitsByLimitId.codex` 数据，避免把未知数据误当作额度。
-- 清理发布前冗余代码，删除未使用 IPC、内联备用图标、空吞错和无用兼容分支。
 
 ## 截图
 
@@ -81,17 +78,6 @@ Codex Quota Widget 是一个 Windows 桌面悬浮小组件，用来查看本机 
 
 完整窗口中仍保留总剩余额度、5 小时窗口、7 天窗口、计划类型和节奏指标。
 
-## 隐私边界
-
-这个工具只在本机运行：
-
-- 不要求手动输入 Codex Token。
-- 不读取或展示认证 Token。
-- 不上传额度数据。
-- 不引入第三方服务。
-- 额度读取依赖本机 Codex CLI 的已登录状态。
-
-如果 Codex CLI 未登录、不可用或返回的数据结构不包含 Codex 额度，小组件会显示读取失败。
 
 ## 本地开发
 
