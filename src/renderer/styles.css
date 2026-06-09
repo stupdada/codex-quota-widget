@@ -82,6 +82,7 @@ button {
 .brand-state,
 .quota-card span,
 .pace-line span,
+.pace-metrics em,
 .status {
   user-select: none;
 }
@@ -223,6 +224,94 @@ button {
     inset 0 0 30px rgba(255, 255, 255, 0.08);
 }
 
+.dual-meter {
+  position: relative;
+  display: none;
+  width: 82px;
+  height: 82px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 0 24px rgba(255, 255, 255, 0.08);
+}
+
+.dual-half {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  overflow: hidden;
+}
+
+.dual-weekly {
+  left: 0;
+}
+
+.dual-short {
+  right: 0;
+}
+
+.dual-fill {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 0%;
+  transition: height 460ms ease;
+}
+
+.weekly-fill {
+  background: linear-gradient(180deg, rgba(101, 224, 141, 0.92), rgba(38, 145, 96, 0.94));
+}
+
+.short-fill {
+  background: linear-gradient(180deg, rgba(92, 179, 255, 0.92), rgba(57, 109, 213, 0.94));
+}
+
+body[data-state="warning"] .weekly-fill {
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.96), rgba(220, 145, 45, 0.94));
+}
+
+body[data-state="danger"] .weekly-fill {
+  background: linear-gradient(180deg, rgba(255, 107, 107, 0.96), rgba(199, 53, 59, 0.95));
+}
+
+.dual-divider {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 50%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.36);
+  transform: translateX(-0.5px);
+}
+
+.dual-label,
+.dual-half strong {
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 2;
+  text-align: center;
+  text-shadow: 0 2px 9px rgba(0, 0, 0, 0.45);
+}
+
+.dual-label {
+  top: 17px;
+  color: rgba(238, 247, 241, 0.7);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.dual-half strong {
+  bottom: 22px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .glass-rim,
 .shine,
 .meter-copy {
@@ -339,7 +428,6 @@ body[data-state="danger"] .liquid-fill {
 }
 
 .pace-heading,
-.pace-lines,
 .pace-line {
   display: flex;
   align-items: center;
@@ -386,15 +474,10 @@ body[data-state="danger"] .liquid-fill {
   background: #b6c1bb;
 }
 
-.pace-lines {
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 8px;
-}
-
 .pace-line {
   min-width: 0;
   gap: 6px;
+  margin-top: 8px;
 }
 
 .pace-line span {
@@ -411,12 +494,37 @@ body[data-state="danger"] .liquid-fill {
   white-space: nowrap;
 }
 
-.pace-reason {
-  min-height: 32px;
-  margin: 8px 0 0;
-  color: rgba(238, 247, 241, 0.76);
-  font-size: 11px;
-  line-height: 1.45;
+.pace-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.pace-metrics span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pace-metrics em {
+  overflow: hidden;
+  color: rgba(238, 247, 241, 0.58);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pace-metrics strong {
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status {
@@ -443,4 +551,90 @@ body[data-state="danger"] .liquid-fill {
   to {
     transform: translateX(-18%);
   }
+}
+
+body[data-view="compact"] .widget {
+  padding: 12px;
+}
+
+body[data-view="compact"] .brand-state {
+  display: none;
+}
+
+body[data-view="compact"] .titlebar {
+  min-height: 30px;
+}
+
+body[data-view="compact"] .content {
+  grid-template-columns: 82px 1fr;
+  grid-template-rows: auto auto;
+  gap: 8px 10px;
+  margin-top: 9px;
+}
+
+body[data-view="compact"] .liquid-meter {
+  display: none;
+}
+
+body[data-view="compact"] .dual-meter {
+  display: block;
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+body[data-view="compact"] .pace-panel {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 0;
+  background: transparent;
+}
+
+body[data-view="compact"] .pace-heading {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+}
+
+body[data-view="compact"] .pace-badge {
+  max-width: 190px;
+}
+
+body[data-view="compact"] .pace-line {
+  margin-top: 5px;
+}
+
+body[data-view="compact"] .pace-metrics {
+  gap: 5px;
+  margin-top: 5px;
+}
+
+body[data-view="compact"] .pace-metrics em {
+  font-size: 9px;
+}
+
+body[data-view="compact"] .pace-metrics strong {
+  font-size: 11px;
+}
+
+body[data-view="compact"] .quota-panel {
+  grid-column: 2;
+  grid-row: 2;
+  gap: 5px;
+}
+
+body[data-view="compact"] .quota-card {
+  min-height: 30px;
+  padding: 6px 8px;
+}
+
+body[data-view="compact"] .quota-card strong {
+  font-size: 11px;
+}
+
+body[data-view="compact"] .quota-card.slim {
+  display: none;
+}
+
+body[data-view="compact"] .status {
+  margin-top: 7px;
 }

@@ -2,6 +2,7 @@ const state = {
   lang: "zh",
   quota: null,
   error: null,
+  compact: false,
   loading: false
 };
 
@@ -11,6 +12,7 @@ const els = {
   brandName: document.getElementById("brandName"),
   stateText: document.getElementById("stateText"),
   langBtn: document.getElementById("langBtn"),
+  compactBtn: document.getElementById("compactBtn"),
   pinBtn: document.getElementById("pinBtn"),
   refreshBtn: document.getElementById("refreshBtn"),
   minimizeBtn: document.getElementById("minimizeBtn"),
@@ -19,6 +21,10 @@ const els = {
   liquidFill: document.getElementById("liquidFill"),
   remaining: document.getElementById("remaining"),
   remainingLabel: document.getElementById("remainingLabel"),
+  dualWeeklyFill: document.getElementById("dualWeeklyFill"),
+  dualShortFill: document.getElementById("dualShortFill"),
+  dualWeeklyText: document.getElementById("dualWeeklyText"),
+  dualShortText: document.getElementById("dualShortText"),
   primaryLabel: document.getElementById("primaryLabel"),
   primaryText: document.getElementById("primaryText"),
   secondaryLabel: document.getElementById("secondaryLabel"),
@@ -29,9 +35,12 @@ const els = {
   paceBadge: document.getElementById("paceBadge"),
   weeklyPaceLabel: document.getElementById("weeklyPaceLabel"),
   weeklyPaceText: document.getElementById("weeklyPaceText"),
-  shortPaceLabel: document.getElementById("shortPaceLabel"),
-  shortPaceText: document.getElementById("shortPaceText"),
-  paceReason: document.getElementById("paceReason"),
+  actualPaceLabel: document.getElementById("actualPaceLabel"),
+  actualPaceText: document.getElementById("actualPaceText"),
+  idealPaceLabel: document.getElementById("idealPaceLabel"),
+  idealPaceText: document.getElementById("idealPaceText"),
+  deltaPaceLabel: document.getElementById("deltaPaceLabel"),
+  deltaPaceText: document.getElementById("deltaPaceText"),
   statusDot: document.getElementById("statusDot"),
   statusText: document.getElementById("statusText")
 };
@@ -52,14 +61,17 @@ const copy = {
     close: "退出",
     pin: "置顶",
     unpin: "取消置顶",
+    compact: "紧凑窗口",
+    expand: "展开窗口",
     statusLoading: "正在读取 Codex 额度...",
     statusReady: "额度已更新",
     statusError: "无法读取 Codex 额度",
     authRequired: "Codex CLI 需要登录后才能读取额度",
     paceTitle: "使用节奏建议",
     weeklyPace: "7天节奏",
-    shortPace: "短窗",
-    reasonPrefix: "原因",
+    actualRemaining: "实际剩余",
+    idealRemaining: "理想剩余",
+    paceDelta: "偏差",
     status: {
       accelerate: "可加快使用",
       normal: "正常",
@@ -93,14 +105,17 @@ const copy = {
     close: "Quit",
     pin: "Pin",
     unpin: "Unpin",
+    compact: "Compact",
+    expand: "Expand",
     statusLoading: "Reading Codex quota...",
     statusReady: "Quota updated",
     statusError: "Unable to read Codex quota",
     authRequired: "Codex CLI must be signed in before quota can be read",
     paceTitle: "Usage pace advice",
     weeklyPace: "7-day pace",
-    shortPace: "Short window",
-    reasonPrefix: "Reason",
+    actualRemaining: "Actual",
+    idealRemaining: "Ideal",
+    paceDelta: "Delta",
     status: {
       accelerate: "Speed up",
       normal: "Normal",
@@ -137,6 +152,13 @@ function percentText(value) {
   return Number.isFinite(Number(value)) ? `${Math.round(Number(value))}%` : "--";
 }
 
+function signedPercentText(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "--";
+  const rounded = Math.round(number);
+  return `${rounded > 0 ? "+" : ""}${rounded}%`;
+}
+
 function formatWindow(window) {
   if (!window) return "--";
   const resetText = window.resetsAt ? formatReset(window.resetsAt) : t("noReset");
@@ -146,8 +168,15 @@ function formatWindow(window) {
 function formatReset(value) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return t("noReset");
-  const locale = state.lang === "zh" ? "zh-CN" : "en-US";
-  return `${t("reset")} ${date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}`;
+  const month = pad2(date.getMonth() + 1);
+  const day = pad2(date.getDate());
+  const hour = pad2(date.getHours());
+  const minute = pad2(date.getMinutes());
+  return `${t("reset")} ${month}/${day} ${hour}:${minute}`;
+}
+
+function pad2(value) {
+  return String(value).padStart(2, "0");
 }
 
 function statusClassFromRemaining(remainingPercent) {
@@ -166,8 +195,11 @@ function renderStaticCopy() {
   setText(els.planLabel, t("plan"));
   setText(els.paceTitle, t("paceTitle"));
   setText(els.weeklyPaceLabel, t("weeklyPace"));
-  setText(els.shortPaceLabel, t("shortPace"));
+  setText(els.actualPaceLabel, t("actualRemaining"));
+  setText(els.idealPaceLabel, t("idealRemaining"));
+  setText(els.deltaPaceLabel, t("paceDelta"));
   setText(els.langBtn, state.lang === "zh" ? "EN" : "中");
+  renderCompactButton(state.compact);
   setAttr(els.refreshBtn, "title", t("refresh"));
   setAttr(els.refreshBtn, "aria-label", t("refresh"));
   setAttr(els.minimizeBtn, "title", t("hide"));
@@ -190,6 +222,7 @@ function renderQuota(quota) {
   setText(els.statusText, t("statusReady"));
   setText(els.remaining, percentText(remaining));
   els.liquidFill.style.height = percentText(remaining);
+  renderDualMeter(quota);
   setText(els.primaryText, formatWindow(quota?.primary));
   setText(els.secondaryText, formatWindow(quota?.secondary));
   setText(els.planText, quota?.planType || t("unknown"));
@@ -199,14 +232,26 @@ function renderQuota(quota) {
 
 function renderPaceAdvice(advice) {
   const weekly = advice?.longWindow;
-  const short = advice?.shortWindow;
   const overall = advice?.overall || { status: "unknown", severity: "muted", reasonCode: "missingLongWindow" };
 
   setText(els.weeklyPaceText, t(`status.${weekly?.status || "unknown"}`));
-  setText(els.shortPaceText, t(`status.${short?.status || "unknown"}`));
   setText(els.paceBadge, t(`status.${overall.status}`));
-  setText(els.paceReason, `${t("reasonPrefix")}：${t(`reasons.${overall.reasonCode}`)}`);
+  setText(els.actualPaceText, percentText(weekly?.remainingPercent));
+  setText(els.idealPaceText, percentText(weekly?.idealRemainingPercent));
+  setText(els.deltaPaceText, signedPercentText(weekly?.paceDelta));
   els.paceBadge.className = `pace-badge ${overall.severity}`;
+}
+
+function renderDualMeter(quota) {
+  const weekly = quota?.paceAdvice?.longWindow;
+  const short = quota?.paceAdvice?.shortWindow;
+  const weeklyPercent = percentText(weekly?.remainingPercent);
+  const shortPercent = percentText(short?.remainingPercent);
+
+  els.dualWeeklyFill.style.height = weeklyPercent;
+  els.dualShortFill.style.height = shortPercent;
+  setText(els.dualWeeklyText, weeklyPercent);
+  setText(els.dualShortText, shortPercent);
 }
 
 function renderLoading() {
@@ -229,6 +274,7 @@ function renderError(error) {
   setText(els.statusText, `${t("statusError")}：${friendlyErrorMessage(error)}`);
   setText(els.remaining, "--%");
   els.liquidFill.style.height = "0%";
+  renderDualMeter(null);
   setText(els.primaryText, "--");
   setText(els.secondaryText, "--");
   setText(els.planText, "--");
@@ -263,11 +309,29 @@ async function syncAlwaysOnTop() {
   renderPin(isPinned);
 }
 
+async function syncCompactMode() {
+  const isCompact = await window.codexQuota.getCompactMode();
+  renderCompactMode(isCompact);
+}
+
 function renderPin(isPinned) {
   els.pinBtn.classList.toggle("active", Boolean(isPinned));
   const label = isPinned ? t("unpin") : t("pin");
   setAttr(els.pinBtn, "title", label);
   setAttr(els.pinBtn, "aria-label", label);
+}
+
+function renderCompactMode(isCompact) {
+  state.compact = Boolean(isCompact);
+  els.body.dataset.view = state.compact ? "compact" : "full";
+  renderCompactButton(state.compact);
+}
+
+function renderCompactButton(isCompact) {
+  const label = isCompact ? t("expand") : t("compact");
+  els.compactBtn.classList.toggle("active", Boolean(isCompact));
+  setAttr(els.compactBtn, "title", label);
+  setAttr(els.compactBtn, "aria-label", label);
 }
 
 els.langBtn.addEventListener("click", () => {
@@ -282,6 +346,11 @@ els.langBtn.addEventListener("click", () => {
   syncAlwaysOnTop();
 });
 
+els.compactBtn.addEventListener("click", async () => {
+  const isCompact = await window.codexQuota.setCompactMode(!state.compact);
+  renderCompactMode(isCompact);
+});
+
 els.refreshBtn.addEventListener("click", refreshQuota);
 els.minimizeBtn.addEventListener("click", () => window.codexQuota.minimize());
 els.closeBtn.addEventListener("click", () => window.codexQuota.close());
@@ -293,7 +362,9 @@ els.pinBtn.addEventListener("click", async () => {
 
 window.codexQuota.onRefresh(refreshQuota);
 window.codexQuota.onAlwaysOnTopChanged(renderPin);
+window.codexQuota.onCompactChanged(renderCompactMode);
 
 renderLoading();
 syncAlwaysOnTop();
+syncCompactMode();
 refreshQuota();

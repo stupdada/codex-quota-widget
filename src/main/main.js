@@ -5,13 +5,20 @@ const { getQuota } = require("./quota-service");
 let mainWindow;
 let tray;
 let isAlwaysOnTop = true;
+let isCompactMode = false;
+
+const WINDOW_SIZES = {
+  full: { width: 390, height: 336 },
+  compact: { width: 360, height: 240 }
+};
 
 function createWindow() {
+  const initialSize = WINDOW_SIZES.full;
   mainWindow = new BrowserWindow({
-    width: 390,
-    height: 336,
-    minWidth: 390,
-    minHeight: 336,
+    width: initialSize.width,
+    height: initialSize.height,
+    minWidth: WINDOW_SIZES.compact.width,
+    minHeight: WINDOW_SIZES.compact.height,
     frame: false,
     transparent: true,
     resizable: false,
@@ -63,6 +70,10 @@ function rebuildTrayMenu() {
       { label: "显示/隐藏", click: toggleWindow },
       { label: "刷新额度", click: () => mainWindow?.webContents.send("quota:refresh") },
       {
+        label: isCompactMode ? "展开窗口" : "紧凑窗口",
+        click: () => setCompactMode(!isCompactMode)
+      },
+      {
         label: isAlwaysOnTop ? "取消置顶" : "置顶",
         click: () => setAlwaysOnTop(!isAlwaysOnTop)
       },
@@ -80,6 +91,19 @@ function setAlwaysOnTop(value) {
   }
   rebuildTrayMenu();
   return isAlwaysOnTop;
+}
+
+function setCompactMode(value) {
+  isCompactMode = Boolean(value);
+  if (mainWindow) {
+    const size = isCompactMode ? WINDOW_SIZES.compact : WINDOW_SIZES.full;
+    mainWindow.setMinimumSize(size.width, size.height);
+    mainWindow.setSize(size.width, size.height, false);
+    placeWindowTopRight();
+    mainWindow.webContents.send("window:compactChanged", isCompactMode);
+  }
+  rebuildTrayMenu();
+  return isCompactMode;
 }
 
 function toggleWindow() {
@@ -101,6 +125,8 @@ app.whenReady().then(() => {
   ipcMain.handle("window:close", () => app.quit());
   ipcMain.handle("window:alwaysOnTop:get", () => isAlwaysOnTop);
   ipcMain.handle("window:alwaysOnTop:set", (_event, value) => setAlwaysOnTop(value));
+  ipcMain.handle("window:compact:get", () => isCompactMode);
+  ipcMain.handle("window:compact:set", (_event, value) => setCompactMode(value));
   ipcMain.handle("external:openCodex", () => {
     shell.openPath(path.join(process.env.LOCALAPPDATA || "", "OpenAI", "Codex", "bin", "codex.exe"));
   });

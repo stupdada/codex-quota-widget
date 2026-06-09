@@ -21,6 +21,11 @@
         </div>
         <div class="window-actions">
           <button id="langBtn" class="text-button" title="Language" aria-label="Language">EN</button>
+          <button id="compactBtn" class="icon-button" title="紧凑窗口" aria-label="紧凑窗口">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M9 9 4 4M15 9l5-5M9 15l-5 5M15 15l5 5" />
+            </svg>
+          </button>
           <button id="pinBtn" class="icon-button active" title="取消置顶" aria-label="取消置顶">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M14 4l6 6-3 1-4 4v4l-2 2-2-6-6-2 2-2h4l4-4 1-3z" />
@@ -58,6 +63,21 @@
           </div>
         </div>
 
+        <div id="dualMeter" class="dual-meter" aria-label="7天窗口和5小时窗口剩余额度">
+          <div class="dual-half dual-weekly">
+            <div id="dualWeeklyFill" class="dual-fill weekly-fill"></div>
+            <span class="dual-label">7d</span>
+            <strong id="dualWeeklyText">--</strong>
+          </div>
+          <div class="dual-half dual-short">
+            <div id="dualShortFill" class="dual-fill short-fill"></div>
+            <span class="dual-label">5h</span>
+            <strong id="dualShortText">--</strong>
+          </div>
+          <div class="dual-divider" aria-hidden="true"></div>
+          <div class="shine"></div>
+        </div>
+
         <div class="quota-panel">
           <div class="quota-card primary">
             <span id="primaryLabel">5小时窗口</span>
@@ -78,17 +98,15 @@
             <span id="paceTitle">使用节奏建议</span>
             <span id="paceBadge" class="pace-badge muted">--</span>
           </div>
-          <div class="pace-lines">
-            <div class="pace-line">
-              <span id="weeklyPaceLabel">7天节奏</span>
-              <strong id="weeklyPaceText">--</strong>
-            </div>
-            <div class="pace-line">
-              <span id="shortPaceLabel">短窗</span>
-              <strong id="shortPaceText">--</strong>
-            </div>
+          <div class="pace-line">
+            <span id="weeklyPaceLabel">7天节奏</span>
+            <strong id="weeklyPaceText">--</strong>
           </div>
-          <p id="paceReason" class="pace-reason">--</p>
+          <div class="pace-metrics" aria-label="7天节奏指标">
+            <span><em id="actualPaceLabel">实际剩余</em><strong id="actualPaceText">--</strong></span>
+            <span><em id="idealPaceLabel">理想剩余</em><strong id="idealPaceText">--</strong></span>
+            <span><em id="deltaPaceLabel">偏差</em><strong id="deltaPaceText">--</strong></span>
+          </div>
         </section>
       </section>
 
