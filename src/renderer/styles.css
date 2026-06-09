@@ -527,7 +527,7 @@ body[data-state="danger"] .liquid-fill {
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 2;
+  z-index: 1;
   height: 0%;
   transition: height 460ms ease;
 }
@@ -537,7 +537,7 @@ body[data-state="danger"] .liquid-fill {
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 1;
+  z-index: 2;
   height: 0%;
   border: 0;
   transition: height 460ms ease;
@@ -576,11 +576,11 @@ body[data-state="danger"] .liquid-fill {
 }
 
 .orb-weekly .orb-ideal {
-  background: rgba(255, 174, 158, 0.5);
+  background: rgba(255, 190, 178, 0.38);
 }
 
 .orb-short .orb-ideal {
-  background: rgba(204, 166, 255, 0.46);
+  background: rgba(215, 186, 255, 0.36);
 }
 
 .orb-divider {
