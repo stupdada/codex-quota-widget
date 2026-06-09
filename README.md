@@ -4,7 +4,7 @@ Codex Quota Widget 是一个 Windows 桌面悬浮小组件，用来查看本机 
 
 本项目改造自 [xicunwus2025-sys/codex-led-widget](https://github.com/xicunwus2025-sys/codex-led-widget)。原项目提供了透明玻璃风格的 Codex 额度窗口，本改造版重点补上了更适合日常开发盯盘的紧凑悬浮球、7 天节奏判断、系统托盘和发布前源码清理。
 
-![Codex Quota Widget](assets/1.png)
+![Codex Quota Widget compact view](assets/codex-quota-compact.png)
 
 ## 主要改造
 
@@ -19,6 +19,19 @@ Codex Quota Widget 是一个 Windows 桌面悬浮小组件，用来查看本机 
 - 清理发布前冗余代码，删除未使用 IPC、内联备用图标、空吞错和无用兼容分支。
 
 ## 截图
+
+### 本改造版截图
+
+下面两张截图来自本改造版，展示新增的紧凑悬浮球和完整额度窗口。
+
+<p align="center">
+  <img src="assets/codex-quota-compact.png" width="260" />
+  <img src="assets/codex-quota-full.png" width="440" />
+</p>
+
+### 原项目截图
+
+下面这些截图来自原项目 [xicunwus2025-sys/codex-led-widget](https://github.com/xicunwus2025-sys/codex-led-widget)，保留在仓库中用于对比改造前的界面方向。
 
 <p align="center">
   <img src="assets/1.png" width="260" />
