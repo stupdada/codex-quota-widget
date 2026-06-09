@@ -1,6 +1,8 @@
-# Codex Quota Widget
+# Codex Quota Widget｜Codex 额度小组件
 
-Codex Quota Widget 是一个 Windows 桌面悬浮小组件，用来查看本机 Codex 额度、重置时间和使用节奏。
+Codex Quota Widget，中文名 **Codex 额度小组件**，也可以叫 **Codex 额度悬浮球** 或 **Codex 额度监控器**。它是一个 Windows 桌面悬浮小组件，用来查看本机 Codex 额度、重置时间和使用节奏。
+
+关键词：Codex 额度、Codex 剩余额度、Codex 用量、Codex 使用限制、Codex 桌面小组件、Codex 悬浮球、Codex quota widget。
 
 本项目改造自 [xicunwus2025-sys/codex-led-widget](https://github.com/xicunwus2025-sys/codex-led-widget)。原项目提供了透明玻璃风格的 Codex 额度窗口，本改造版重点补上了更适合日常开发盯盘的紧凑悬浮球、7 天节奏判断、系统托盘和发布前源码清理。
 

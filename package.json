@@ -1,7 +1,7 @@
 {
   "name": "codex-quota-widget",
   "version": "0.1.1",
-  "description": "Windows desktop widget for monitoring local Codex usage quota and usage pace.",
+  "description": "Codex 额度小组件 / Windows desktop widget for monitoring local Codex usage quota and usage pace.",
   "main": "src/main/main.js",
   "author": "Codex Quota Widget Contributors",
   "license": "MIT",
@@ -14,6 +14,18 @@
   "bugs": {
     "url": "https://github.com/stupdada/codex-quota-widget/issues"
   },
+  "keywords": [
+    "codex",
+    "codex-quota",
+    "codex-usage",
+    "quota-widget",
+    "desktop-widget",
+    "electron",
+    "codex额度",
+    "codex额度小组件",
+    "codex额度悬浮球",
+    "codex用量"
+  ],
   "scripts": {
     "dev": "electron .",
     "start": "electron .",
