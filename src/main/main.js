@@ -6,14 +6,14 @@ let mainWindow;
 let tray;
 let isAlwaysOnTop = true;
 let isCompactMode = false;
-let compactScale = 1;
+let compactScale = 0.65;
 
 const WINDOW_SIZES = {
   full: { width: 390, height: 336 }
 };
 
 const COMPACT_BASE_SIZE = { width: 210, height: 252 };
-const COMPACT_SCALE_LIMITS = { min: 0.75, max: 1.8 };
+const COMPACT_SCALE_LIMITS = { min: 0.33, max: 1.8 };
 
 function clampCompactScale(value) {
   const scale = Number(value);

@@ -3,13 +3,14 @@ const state = {
   quota: null,
   error: null,
   compact: false,
-  compactScale: 1,
+  compactScale: 0.65,
   resizing: null,
   moving: null,
   loading: false
 };
 
-const COMPACT_SCALE_LIMITS = { min: 0.75, max: 1.8 };
+const COMPACT_SCALE_LIMITS = { min: 0.33, max: 1.8 };
+const AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 const els = {
   body: document.body,
@@ -285,7 +286,9 @@ function renderCompactAdvice(advice) {
 
 function setFillHeight(element, value) {
   if (!element) return;
-  element.style.height = percentCss(value) || "0%";
+  const fillHeight = percentCss(value);
+  element.hidden = !fillHeight || fillHeight === "0%";
+  element.style.height = fillHeight || "0%";
 }
 
 function setIdealMarker(element, value) {
@@ -518,3 +521,4 @@ syncAlwaysOnTop();
 syncCompactMode();
 syncCompactScale();
 refreshQuota();
+setInterval(refreshQuota, AUTO_REFRESH_INTERVAL_MS);

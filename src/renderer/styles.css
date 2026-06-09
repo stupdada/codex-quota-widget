@@ -527,7 +527,7 @@ body[data-state="danger"] .liquid-fill {
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 1;
+  z-index: 2;
   height: 0%;
   transition: height 460ms ease;
 }
@@ -537,10 +537,42 @@ body[data-state="danger"] .liquid-fill {
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 2;
+  z-index: 1;
   height: 0%;
   border: 0;
   transition: height 460ms ease;
+}
+
+.orb-fill::before,
+.orb-fill::after,
+.orb-ideal::before,
+.orb-ideal::after {
+  position: absolute;
+  right: -18%;
+  left: -18%;
+  height: 18px;
+  background: inherit;
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+}
+
+.orb-fill::before,
+.orb-ideal::before {
+  top: -9px;
+  transform: translateX(-7%) rotate(-3deg);
+}
+
+.orb-fill::after,
+.orb-ideal::after {
+  top: -7px;
+  opacity: 0.72;
+  transform: translateX(14%) rotate(4deg);
+}
+
+.orb-fill[hidden],
+.orb-ideal[hidden] {
+  display: none;
 }
 
 .orb-weekly .orb-ideal {
@@ -549,10 +581,6 @@ body[data-state="danger"] .liquid-fill {
 
 .orb-short .orb-ideal {
   background: rgba(204, 166, 255, 0.46);
-}
-
-.orb-ideal[hidden] {
-  display: none;
 }
 
 .orb-divider {
@@ -691,11 +719,11 @@ body[data-state="danger"] .liquid-fill {
 
 .compact-resize-handle {
   position: absolute;
-  right: 3px;
-  bottom: 3px;
+  right: 0;
+  bottom: 0;
   z-index: 9;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   border: 0;
   border-radius: 50%;
