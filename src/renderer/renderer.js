@@ -2,16 +2,28 @@ const state = {
   lang: "zh",
   quota: null,
   error: null,
-  compact: false,
-  compactScale: 0.65,
+  compact: true,
+  compactDisplayMode: "hud",
+  compactExpanded: false,
+  compactScale: 0.46,
+  compactTheme: "glass",
   resizing: null,
   moving: null,
   resizeFrame: null,
   moveFrame: null,
+  hoverProbeTimer: null,
+  hoverProbeInFlight: false,
   loading: false
 };
 
-const COMPACT_SCALE_LIMITS = { min: 0.33, max: 1.8 };
+const COMPACT_HOVER_PROBE_MS = 80;
+
+const COMPACT_SCALE_LIMITS = { min: 0.46, max: 1.25 };
+const COMPACT_DEFAULT_SCALE = 0.46;
+const COMPACT_DEFAULT_SCALE_SNAP_DISTANCE = 0.035;
+const COMPACT_THEME_STORAGE_KEY = "codexQuotaCompactTheme";
+const COMPACT_THEMES = new Set(["glass", "island"]);
+const COMPACT_DISPLAY_MODES = new Set(["hud", "topStrip"]);
 
 function requiredElement(id) {
   const element = document.getElementById(id);
@@ -44,22 +56,28 @@ const els = {
   liquidFill: requiredElement("liquidFill"),
   remaining: requiredElement("remaining"),
   remainingLabel: requiredElement("remainingLabel"),
-  compactOrb: requiredElement("compactOrb"),
+  compactShell: requiredElement("compactShell"),
+  compactHud: requiredElement("compactHud"),
+  compactControls: requiredElement("compactControls"),
   compactWeeklyFill: requiredElement("compactWeeklyFill"),
   compactShortFill: requiredElement("compactShortFill"),
   compactWeeklyIdeal: requiredElement("compactWeeklyIdeal"),
   compactShortIdeal: requiredElement("compactShortIdeal"),
-  compactWeeklyIdealSurface: requiredElement("compactWeeklyIdealSurface"),
-  compactShortIdealSurface: requiredElement("compactShortIdealSurface"),
-  compactWeeklySurface: requiredElement("compactWeeklySurface"),
-  compactShortSurface: requiredElement("compactShortSurface"),
+  compactWeeklyIdealText: requiredElement("compactWeeklyIdealText"),
+  compactShortIdealText: requiredElement("compactShortIdealText"),
   compactWeeklyText: requiredElement("compactWeeklyText"),
   compactShortText: requiredElement("compactShortText"),
+  compactWeeklyDelta: requiredElement("compactWeeklyDelta"),
+  compactShortDelta: requiredElement("compactShortDelta"),
+  compactThemeBtn: requiredElement("compactThemeBtn"),
   compactExpandBtn: requiredElement("compactExpandBtn"),
   compactCloseBtn: requiredElement("compactCloseBtn"),
   compactResizeHandle: requiredElement("compactResizeHandle"),
   compactAdviceText: requiredElement("compactAdviceText"),
-  compactResetActions: requiredElements(".compact-reset-action"),
+  compactAdviceKicker: requiredElement("compactAdviceKicker"),
+  compactAdviceValue: requiredElement("compactAdviceValue"),
+  compactResetLabels: requiredElements(".compact-reset-label"),
+  compactResetInfo: requiredElement("compactResetInfo"),
   compactShortResetText: requiredElement("compactShortResetText"),
   compactWeeklyResetText: requiredElement("compactWeeklyResetText"),
   primaryLabel: requiredElement("primaryLabel"),
@@ -102,6 +120,7 @@ const copy = {
     compact: "紧凑窗口",
     expand: "展开窗口",
     resize: "缩放",
+    theme: "切换 HUD 主题",
     statusLoading: "正在读取 Codex 额度...",
     statusReady: "额度已更新",
     statusError: "无法读取 Codex 额度",
@@ -126,7 +145,7 @@ const copy = {
       insufficientData: "7天窗口缺少 reset 时间或窗口时长",
       missingLongWindow: "没有可用于主判断的 7天窗口数据"
     },
-    reset: "重置",
+    reset: "重置时间",
     noReset: "未提供重置时间"
   },
   en: {
@@ -148,6 +167,7 @@ const copy = {
     compact: "Compact",
     expand: "Expand",
     resize: "Resize",
+    theme: "Switch HUD theme",
     statusLoading: "Reading Codex quota...",
     statusReady: "Quota updated",
     statusError: "Unable to read Codex quota",
@@ -172,7 +192,7 @@ const copy = {
       insufficientData: "The 7-day reset time or window duration is missing",
       missingLongWindow: "No 7-day window data is available for the main decision"
     },
-    reset: "resets",
+    reset: "reset time",
     noReset: "reset time unavailable"
   }
 };
@@ -204,6 +224,25 @@ function signedPercentText(value) {
   return `${rounded > 0 ? "+" : ""}${rounded}%`;
 }
 
+function signedDeltaText(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "--";
+  const rounded = Math.round(number);
+  return `${rounded > 0 ? "+" : ""}${rounded}`;
+}
+
+function compactDeltaClass(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || Math.round(number) === 0) return "compact-delta neutral";
+  return `compact-delta ${number > 0 ? "positive" : "negative"}`;
+}
+
+function clampPercentValue(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return Math.min(100, Math.max(0, number));
+}
+
 function formatWindow(window) {
   if (!window) return "--";
   const resetText = window.resetsAt ? formatReset(window.resetsAt) : t("noReset");
@@ -231,6 +270,10 @@ function compactResetTime(window) {
   return `${month}/${day} ${hour}:${minute}`;
 }
 
+function compactResetDetail(window) {
+  return compactResetTime(window);
+}
+
 function pad2(value) {
   return String(value).padStart(2, "0");
 }
@@ -254,7 +297,6 @@ function renderStaticCopy() {
   setText(els.actualPaceLabel, t("actualRemaining"));
   setText(els.idealPaceLabel, t("idealRemaining"));
   setText(els.deltaPaceLabel, t("paceDelta"));
-  setTextAll(els.compactResetActions, t("reset"));
   setText(els.langBtn, state.lang === "zh" ? "EN" : "中");
   renderCompactButton(state.compact);
   setAttr(els.refreshBtn, "title", t("refresh"));
@@ -267,8 +309,12 @@ function renderStaticCopy() {
   setAttr(els.compactExpandBtn, "aria-label", t("expand"));
   setAttr(els.compactCloseBtn, "title", t("hideToTray"));
   setAttr(els.compactCloseBtn, "aria-label", t("hideToTray"));
+  setAttr(els.compactThemeBtn, "title", t("theme"));
+  setAttr(els.compactThemeBtn, "aria-label", t("theme"));
   setAttr(els.compactResizeHandle, "title", t("resize"));
   setAttr(els.compactResizeHandle, "aria-label", t("resize"));
+  setTextAll(els.compactResetLabels, t("reset"));
+  renderCompactTheme(state.compactTheme, { persist: false });
 }
 
 function renderQuota(quota) {
@@ -285,7 +331,7 @@ function renderQuota(quota) {
   setText(els.statusText, t("statusReady"));
   setText(els.remaining, percentText(remaining));
   els.liquidFill.style.height = percentText(remaining);
-  renderCompactOrb(quota);
+  renderCompactHud(quota);
   setText(els.primaryText, formatWindow(quota?.primary));
   setText(els.secondaryText, formatWindow(quota?.secondary));
   setText(els.planText, quota?.planType || t("unknown"));
@@ -308,68 +354,90 @@ function renderPaceAdvice(advice) {
 
 function renderCompactAdvice(advice) {
   const overall = advice?.overall || { status: "unknown", severity: "muted" };
-  setText(els.compactAdviceText, t(`status.${overall.status}`));
+  const compactText = compactAdviceText(overall.status);
+  setText(els.compactAdviceKicker, compactText.kicker);
+  setText(els.compactAdviceValue, compactText.value);
+  setAttr(els.compactAdviceText, "title", t(`status.${overall.status}`));
+  setAttr(els.compactAdviceText, "aria-label", t(`status.${overall.status}`));
   els.compactAdviceText.className = `compact-advice ${overall.severity}`;
 }
 
-function setFillHeight(element, value) {
-  const geometry = surfaceGeometry(value);
-  element.hidden = !geometry || geometry.bottom === "0%";
-  element.style.height = geometry?.bodyHeight || "0%";
-}
-
-function setIdealMarker(element, surfaceElement, value) {
-  const geometry = surfaceGeometry(value);
-  element.hidden = !geometry || geometry.bottom === "0%";
-  element.style.height = geometry?.bodyHeight || "0%";
-  element.style.removeProperty("--ideal-position");
-  setSurfaceLevel(surfaceElement, value);
-}
-
-function surfaceGeometry(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return null;
-  const level = Math.min(100, Math.max(0, number));
-  const distanceFromCenter = Math.abs(level - 50) / 50;
-  const widthRatio = Math.sqrt(Math.max(0, 1 - distanceFromCenter * distanceFromCenter));
-  const edgeWidthBoost = distanceFromCenter * distanceFromCenter * 18;
-  const minWidthPercent = 32 + distanceFromCenter * distanceFromCenter * 10;
-  const widthPercent = Math.min(100, Math.max(minWidthPercent, widthRatio * 100 + edgeWidthBoost));
-  const heightPx = 8 + widthRatio * 4;
-  const halfHeightPx = heightPx / 2;
-  return {
-    bottom: `${level}%`,
-    bodyHeight: `${level}%`,
-    surfaceBottom: `max(0px, calc(${level}% - ${halfHeightPx}px))`,
-    width: `${widthPercent}%`,
-    height: `${heightPx}px`
+function compactAdviceText(status) {
+  const statusKey = ["accelerate", "normal", "slow", "critical", "unknown"].includes(status) ? status : "unknown";
+  const labels = {
+    zh: {
+      accelerate: { kicker: "建议", value: "加快" },
+      normal: { kicker: "状态", value: "正常" },
+      slow: { kicker: "建议", value: "减速" },
+      critical: { kicker: "风险", value: "暂停" },
+      unknown: { kicker: "状态", value: "未知" }
+    },
+    en: {
+      accelerate: { kicker: "Use", value: "Fast" },
+      normal: { kicker: "Status", value: "OK" },
+      slow: { kicker: "Use", value: "Less" },
+      critical: { kicker: "Risk", value: "Pause" },
+      unknown: { kicker: "Status", value: "?" }
+    }
   };
+  return (labels[state.lang] || labels.zh)[statusKey];
 }
 
-function setSurfaceLevel(element, value) {
-  const geometry = surfaceGeometry(value);
-  element.hidden = !geometry || geometry.bottom === "0%";
-  element.style.bottom = geometry?.surfaceBottom || "0%";
-  element.style.setProperty("--surface-width", geometry?.width || "18%");
-  element.style.setProperty("--surface-height", geometry?.height || "10px");
+function setCompactTrack(fillElement, idealElement, idealTextElement, actualValue, idealValue) {
+  const actual = clampPercentValue(actualValue);
+  const ideal = clampPercentValue(idealValue);
+
+  fillElement.style.width = actual === null ? "0%" : `${actual}%`;
+  fillElement.hidden = actual === null;
+
+  idealElement.hidden = ideal === null;
+  idealTextElement.hidden = ideal === null;
+  if (ideal === null) {
+    idealElement.style.left = "0%";
+    idealTextElement.style.left = "0%";
+    setText(idealTextElement, "--");
+    return;
+  }
+
+  const idealPosition = `${ideal}%`;
+  idealElement.style.left = idealPosition;
+  idealTextElement.style.left = `clamp(14px, ${idealPosition}, calc(100% - 14px))`;
+  setText(idealTextElement, percentText(ideal));
 }
 
-function renderCompactOrb(quota) {
+function renderCompactMetric({ fill, ideal, idealText, percentTextElement, deltaTextElement }, window) {
+  setCompactTrack(fill, ideal, idealText, window?.remainingPercent, window?.idealRemainingPercent);
+  setText(percentTextElement, percentText(window?.remainingPercent));
+  setText(deltaTextElement, signedDeltaText(window?.paceDelta));
+  deltaTextElement.className = compactDeltaClass(window?.paceDelta);
+}
+
+function renderCompactHud(quota) {
   const weekly = quota?.paceAdvice?.longWindow;
   const short = quota?.paceAdvice?.shortWindow;
-  const weeklyPercent = percentText(weekly?.remainingPercent);
-  const shortPercent = percentText(short?.remainingPercent);
 
-  setFillHeight(els.compactWeeklyFill, weekly?.remainingPercent);
-  setFillHeight(els.compactShortFill, short?.remainingPercent);
-  setIdealMarker(els.compactWeeklyIdeal, els.compactWeeklyIdealSurface, weekly?.idealRemainingPercent);
-  setIdealMarker(els.compactShortIdeal, els.compactShortIdealSurface, short?.idealRemainingPercent);
-  setSurfaceLevel(els.compactWeeklySurface, weekly?.remainingPercent);
-  setSurfaceLevel(els.compactShortSurface, short?.remainingPercent);
-  setText(els.compactWeeklyText, weeklyPercent);
-  setText(els.compactShortText, shortPercent);
-  setText(els.compactShortResetText, compactResetTime(quota?.primary));
-  setText(els.compactWeeklyResetText, compactResetTime(quota?.secondary));
+  renderCompactMetric(
+    {
+      fill: els.compactWeeklyFill,
+      ideal: els.compactWeeklyIdeal,
+      idealText: els.compactWeeklyIdealText,
+      percentTextElement: els.compactWeeklyText,
+      deltaTextElement: els.compactWeeklyDelta
+    },
+    weekly
+  );
+  renderCompactMetric(
+    {
+      fill: els.compactShortFill,
+      ideal: els.compactShortIdeal,
+      idealText: els.compactShortIdealText,
+      percentTextElement: els.compactShortText,
+      deltaTextElement: els.compactShortDelta
+    },
+    short
+  );
+  setText(els.compactWeeklyResetText, compactResetDetail(quota?.secondary));
+  setText(els.compactShortResetText, compactResetDetail(quota?.primary));
 }
 
 function renderLoading() {
@@ -380,7 +448,7 @@ function renderLoading() {
   setText(els.stateText, t("loading"));
   setText(els.statusText, t("statusLoading"));
   if (!state.quota) {
-    renderCompactOrb(null);
+    renderCompactHud(null);
     renderCompactAdvice(null);
   }
 }
@@ -396,7 +464,7 @@ function renderError(error) {
   setText(els.statusText, `${t("statusError")}：${friendlyErrorMessage(error)}`);
   setText(els.remaining, "--%");
   els.liquidFill.style.height = "0%";
-  renderCompactOrb(null);
+  renderCompactHud(null);
   setText(els.primaryText, "--");
   setText(els.secondaryText, "--");
   setText(els.planText, "--");
@@ -472,6 +540,11 @@ async function syncCompactScale() {
   renderCompactScale(compactScale);
 }
 
+async function syncCompactDisplayMode() {
+  const compactDisplayMode = await window.codexQuota.getCompactDisplayMode();
+  renderCompactDisplayMode(compactDisplayMode);
+}
+
 function renderPin(isPinned) {
   els.pinBtn.classList.toggle("active", Boolean(isPinned));
   const label = isPinned ? t("unpin") : t("pin");
@@ -483,6 +556,27 @@ function renderCompactMode(isCompact) {
   state.compact = Boolean(isCompact);
   els.body.dataset.view = state.compact ? "compact" : "full";
   renderCompactButton(state.compact);
+  if (!state.compact) renderCompactExpanded(false);
+  updateCompactMousePassthrough();
+}
+
+function normalizeCompactDisplayMode(value) {
+  return COMPACT_DISPLAY_MODES.has(value) ? value : "hud";
+}
+
+function isTopStripMode() {
+  return state.compactDisplayMode === "topStrip";
+}
+
+function renderCompactDisplayMode(value) {
+  state.compactDisplayMode = normalizeCompactDisplayMode(value);
+  els.body.dataset.compactDisplay = state.compactDisplayMode;
+  renderCompactExpanded(false);
+  if (!isTopStripMode()) {
+    setCompactMousePassthrough(false);
+  } else {
+    updateCompactMousePassthrough();
+  }
 }
 
 function clampCompactScale(value) {
@@ -491,13 +585,84 @@ function clampCompactScale(value) {
   return Math.min(COMPACT_SCALE_LIMITS.max, Math.max(COMPACT_SCALE_LIMITS.min, scale));
 }
 
+function snapCompactScale(value) {
+  const scale = clampCompactScale(value);
+  if (Math.abs(scale - COMPACT_DEFAULT_SCALE) <= COMPACT_DEFAULT_SCALE_SNAP_DISTANCE) {
+    return COMPACT_DEFAULT_SCALE;
+  }
+  return scale;
+}
+
 function renderCompactScale(value) {
   state.compactScale = clampCompactScale(value);
-  document.documentElement.style.setProperty("--compact-scale", String(state.compactScale));
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty("--compact-scale", String(state.compactScale));
+  rootStyle.setProperty(
+    "--compact-ideal-font-size",
+    `${compensatedFontSize(state.compactScale, { min: 8.5, base: 8.5, max: 11.5 })}px`
+  );
+  rootStyle.setProperty(
+    "--compact-advice-font-size",
+    `${compensatedFontSize(state.compactScale, { min: 10, base: 10.5, max: 13 })}px`
+  );
+  rootStyle.setProperty(
+    "--compact-detail-font-size",
+    `${compensatedFontSize(state.compactScale, { min: 10, base: 10.5, max: 13 })}px`
+  );
+  rootStyle.setProperty(
+    "--compact-detail-label-font-size",
+    `${compensatedFontSize(state.compactScale, { min: 10.5, base: 11, max: 13.5 })}px`
+  );
+  rootStyle.setProperty(
+    "--compact-detail-line-height",
+    `${compensatedFontSize(state.compactScale, { min: 12, base: 12.5, max: 16 })}px`
+  );
+}
+
+function compensatedFontSize(scale, { min, base, max }) {
+  const safeScale = clampCompactScale(scale);
+  const visualSize = Math.min(max, Math.max(min, base * Math.sqrt(safeScale / COMPACT_DEFAULT_SCALE)));
+  return visualSize / safeScale;
+}
+
+function normalizeCompactTheme(value) {
+  return COMPACT_THEMES.has(value) ? value : "glass";
+}
+
+function loadCompactTheme() {
+  return normalizeCompactTheme(window.localStorage.getItem(COMPACT_THEME_STORAGE_KEY));
+}
+
+function renderCompactTheme(value, options = {}) {
+  const theme = normalizeCompactTheme(value);
+  state.compactTheme = theme;
+  els.body.dataset.compactTheme = theme;
+  setText(els.compactThemeBtn, theme === "glass" ? "岛" : "玻");
+  if (options.persist !== false) {
+    window.localStorage.setItem(COMPACT_THEME_STORAGE_KEY, theme);
+  }
+}
+
+function toggleCompactTheme() {
+  renderCompactTheme(state.compactTheme === "glass" ? "island" : "glass");
 }
 
 function reportInteractionError(error) {
   console.error("Codex Quota Widget interaction failed:", error);
+}
+
+function setCompactMousePassthrough(enabled) {
+  window.codexQuota.setCompactMousePassthrough(Boolean(enabled)).catch(reportInteractionError);
+}
+
+function updateCompactMousePassthrough() {
+  const passthrough =
+    state.compact &&
+    isTopStripMode() &&
+    !state.moving &&
+    !state.resizing &&
+    !state.compactExpanded;
+  setCompactMousePassthrough(passthrough);
 }
 
 function renderCompactButton(isCompact) {
@@ -508,7 +673,7 @@ function renderCompactButton(isCompact) {
 }
 
 function startCompactResize(event) {
-  if (!state.compact) return;
+  if (!state.compact || isTopStripMode()) return;
   event.preventDefault();
   event.stopPropagation();
   state.resizing = {
@@ -518,6 +683,7 @@ function startCompactResize(event) {
     pendingScale: state.compactScale
   };
   els.body.classList.add("is-resizing");
+  syncCompactHoverProbe();
   window.addEventListener("mousemove", handleCompactResize);
   window.addEventListener("mouseup", stopCompactResize, { once: true });
 }
@@ -528,7 +694,7 @@ function handleCompactResize(event) {
   const deltaX = event.screenX - state.resizing.startX;
   const deltaY = event.screenY - state.resizing.startY;
   const dominantDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
-  const nextScale = clampCompactScale(state.resizing.startScale + dominantDelta / 180);
+  const nextScale = snapCompactScale(state.resizing.startScale + dominantDelta / 210);
   renderCompactScale(nextScale);
   scheduleCompactScaleCommit(nextScale);
 }
@@ -556,20 +722,128 @@ function stopCompactResize() {
   els.body.classList.remove("is-resizing");
   state.resizing = null;
   window.codexQuota.setCompactScale(state.compactScale).then(renderCompactScale).catch(reportInteractionError);
+  syncCompactHoverProbe();
+  updateCompactMousePassthrough();
+}
+
+function renderCompactExpanded(expanded) {
+  state.compactExpanded = Boolean(expanded);
+  els.body.dataset.compactExpanded = state.compactExpanded ? "true" : "false";
+  syncCompactHoverProbe();
+}
+
+function setCompactExpanded(expanded) {
+  const nextExpanded = Boolean(expanded) && state.compact;
+  if (state.compactExpanded === nextExpanded) return;
+  renderCompactExpanded(nextExpanded);
+  if (nextExpanded) setCompactMousePassthrough(false);
+  window.codexQuota
+    .setCompactExpanded(nextExpanded)
+    .then(() => {
+      if (!nextExpanded) updateCompactMousePassthrough();
+    })
+    .catch(reportInteractionError);
+}
+
+function handleCompactPointerMove(event) {
+  if (!state.compact || state.moving || state.resizing) return;
+  setCompactExpanded(isInsideCompactVisibleSurface(event));
+}
+
+function syncCompactHoverProbe() {
+  if (state.hoverProbeTimer && (!state.compactExpanded || state.moving || state.resizing)) {
+    window.clearInterval(state.hoverProbeTimer);
+    state.hoverProbeTimer = null;
+  }
+  if (!state.compactExpanded || state.moving || state.resizing || state.hoverProbeTimer) return;
+  state.hoverProbeTimer = window.setInterval(probeCompactHoverState, COMPACT_HOVER_PROBE_MS);
+}
+
+async function probeCompactHoverState() {
+  if (!state.compactExpanded || state.moving || state.resizing) {
+    syncCompactHoverProbe();
+    return;
+  }
+  if (state.hoverProbeInFlight) return;
+  state.hoverProbeInFlight = true;
+  try {
+    const cursorState = await window.codexQuota.getCursorState();
+    const pointerEvent = pointerEventFromCursorState(cursorState);
+    if (!pointerEvent || !isInsideCompactVisibleSurface(pointerEvent)) {
+      setCompactExpanded(false);
+    }
+  } catch (error) {
+    reportInteractionError(error);
+  } finally {
+    state.hoverProbeInFlight = false;
+  }
+}
+
+function pointerEventFromCursorState(cursorState) {
+  const cursor = cursorState?.cursor;
+  const bounds = cursorState?.windowBounds;
+  if (!cursor || !bounds) return null;
+  return {
+    clientX: cursor.x - bounds.x,
+    clientY: cursor.y - bounds.y
+  };
 }
 
 function startCompactMove(event) {
   if (!state.compact || event.button !== 0) return;
+  if (!isInsideCompactDragArea(event)) return;
   event.preventDefault();
+  event.stopPropagation();
+  setCompactMousePassthrough(false);
   state.moving = {
     lastX: event.screenX,
     lastY: event.screenY,
     pendingDeltaX: 0,
-    pendingDeltaY: 0
+    pendingDeltaY: 0,
+    movePromise: Promise.resolve()
   };
   els.body.classList.add("is-moving");
+  syncCompactHoverProbe();
   window.addEventListener("mousemove", handleCompactMove);
   window.addEventListener("mouseup", stopCompactMove, { once: true });
+}
+
+function isInsideCompactDragArea(event) {
+  if (isTopStripMode()) return isInsideCompactVisibleSurface(event);
+  return isInsideCompactHudCapsule(event);
+}
+
+function isInsideCompactVisibleSurface(event) {
+  if (isTopStripMode()) {
+    return isInsideElementRect(event, els.compactHud);
+  }
+  if (isInsideCompactHudCapsule(event)) return true;
+  if (!state.compactExpanded) return false;
+  return [els.compactControls, els.compactAdviceText, els.compactResetInfo, els.compactResizeHandle].some((element) =>
+    isInsideElementRect(event, element)
+  );
+}
+
+function isInsideElementRect(event, element) {
+  if (!element) return false;
+  const rect = element.getBoundingClientRect();
+  return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+}
+
+function isInsideCompactHudCapsule(event) {
+  const rect = els.compactHud.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  if (x < 0 || y < 0 || x > rect.width || y > rect.height) return false;
+
+  const radius = rect.height / 2;
+  if (x < radius) {
+    return Math.hypot(x - radius, y - radius) <= radius;
+  }
+  if (x > rect.width - radius) {
+    return Math.hypot(x - (rect.width - radius), y - radius) <= radius;
+  }
+  return true;
 }
 
 function handleCompactMove(event) {
@@ -596,24 +870,39 @@ function scheduleCompactMove() {
 
 function flushCompactMove() {
   if (!state.moving) return;
+  const moving = state.moving;
   const deltaX = state.moving.pendingDeltaX;
   const deltaY = state.moving.pendingDeltaY;
   state.moving.pendingDeltaX = 0;
   state.moving.pendingDeltaY = 0;
-  if (deltaX === 0 && deltaY === 0) return;
-  window.codexQuota.moveCompactWindow(deltaX, deltaY).catch(reportInteractionError);
+  if (deltaX === 0 && deltaY === 0) return moving.movePromise;
+
+  const request = moving.movePromise
+    .catch(() => undefined)
+    .then(() => window.codexQuota.moveCompactWindow(deltaX, deltaY));
+  moving.movePromise = request.catch(reportInteractionError);
+  return moving.movePromise;
 }
 
 function stopCompactMove() {
   if (!state.moving) return;
+  const moving = state.moving;
   window.removeEventListener("mousemove", handleCompactMove);
   if (state.moveFrame) {
     window.cancelAnimationFrame(state.moveFrame);
     state.moveFrame = null;
   }
-  flushCompactMove();
+  const finishMove = flushCompactMove() || moving.movePromise;
   els.body.classList.remove("is-moving");
   state.moving = null;
+  syncCompactHoverProbe();
+  finishMove
+    .then(() => window.codexQuota.snapCompactWindow())
+    .then((snapResult) => {
+      renderCompactDisplayMode(snapResult?.displayMode);
+      updateCompactMousePassthrough();
+    })
+    .catch(reportInteractionError);
 }
 
 els.langBtn.addEventListener("click", () => {
@@ -639,7 +928,12 @@ els.compactExpandBtn.addEventListener("click", async () => {
 });
 
 els.compactCloseBtn.addEventListener("click", () => window.codexQuota.minimize());
-els.compactOrb.addEventListener("mousedown", startCompactMove);
+els.compactThemeBtn.addEventListener("click", toggleCompactTheme);
+window.addEventListener("mousemove", handleCompactPointerMove);
+window.addEventListener("mouseout", (event) => {
+  if (!event.relatedTarget) setCompactExpanded(false);
+});
+els.compactHud.addEventListener("mousedown", startCompactMove);
 els.compactResizeHandle.addEventListener("mousedown", startCompactResize);
 
 els.refreshBtn.addEventListener("click", refreshQuota);
@@ -651,6 +945,8 @@ els.pinBtn.addEventListener("click", async () => {
   renderPin(isPinned);
 });
 
+renderCompactTheme(loadCompactTheme(), { persist: false });
+
 window.codexQuota.onQuotaChanged(renderQuotaState);
 window.codexQuota.onAlwaysOnTopChanged(renderPin);
 window.codexQuota.onCompactChanged(renderCompactMode);
@@ -658,9 +954,11 @@ window.codexQuota.onCompactScaleChanged((value) => {
   if (state.resizing) return;
   renderCompactScale(value);
 });
+window.codexQuota.onCompactDisplayModeChanged(renderCompactDisplayMode);
 
 renderLoading();
 syncAlwaysOnTop();
 syncCompactMode();
+syncCompactDisplayMode();
 syncCompactScale();
 window.codexQuota.getQuotaState().then(renderQuotaState).catch(renderError);

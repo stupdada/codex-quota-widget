@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } = require("electron");
 const path = require("node:path");
 const { QuotaStore } = require("./quota-store");
+const { COMPACT_LAYOUT } = require("../shared/compact-layout");
 
 const APP_ICON_PATH = path.join(__dirname, "../../assets/app-icon.png");
 const TRAY_ICON_PATH = path.join(__dirname, "../../assets/app-icon-tray-16.png");
@@ -14,14 +15,26 @@ let ipcHandlersRegistered = false;
 let isQuitting = false;
 let isAlwaysOnTop = true;
 let isCompactMode = true;
-let compactScale = 0.65;
+let compactScale = 0.46;
+let isCompactExpanded = false;
+let isCompactTopStrip = false;
+let isCompactMousePassthrough = false;
 
 const WINDOW_SIZES = {
   full: { width: 390, height: 336 }
 };
 
-const COMPACT_BASE_SIZE = { width: 210, height: 264 };
-const COMPACT_SCALE_LIMITS = { min: 0.33, max: 1.8 };
+const COMPACT_HUD_COLLAPSED_BASE_SIZE = { width: COMPACT_LAYOUT.width, height: COMPACT_LAYOUT.hud.collapsedHeight };
+const COMPACT_HUD_EXPANDED_BASE_SIZE = { width: COMPACT_LAYOUT.width, height: COMPACT_LAYOUT.hud.expandedHeight };
+const COMPACT_STRIP_COLLAPSED_BASE_SIZE = { width: COMPACT_LAYOUT.width, height: COMPACT_LAYOUT.topStrip.collapsedHeight };
+const COMPACT_STRIP_EXPANDED_BASE_SIZE = { width: COMPACT_LAYOUT.width, height: COMPACT_LAYOUT.topStrip.expandedHeight };
+const COMPACT_SCALE_LIMITS = COMPACT_LAYOUT.scale;
+const COMPACT_TOP_OFFSET = 6;
+const COMPACT_TOP_SNAP_DISTANCE = 28;
+const COMPACT_CENTER_SNAP_DISTANCE = 48;
+const COMPACT_STRIP_TOP_OFFSET = 0;
+const COMPACT_STRIP_TOP_SNAP_DISTANCE = 4;
+const COMPACT_STRIP_CENTER_SNAP_DISTANCE = 56;
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
@@ -38,16 +51,28 @@ function clampCompactScale(value) {
   return Math.min(COMPACT_SCALE_LIMITS.max, Math.max(COMPACT_SCALE_LIMITS.min, scale));
 }
 
-function scaledCompactSize(scale = compactScale) {
+function compactDisplayMode() {
+  return isCompactTopStrip ? "topStrip" : "hud";
+}
+
+function compactBaseSize(expanded = isCompactExpanded, topStrip = isCompactTopStrip) {
+  if (topStrip) {
+    return expanded ? COMPACT_STRIP_EXPANDED_BASE_SIZE : COMPACT_STRIP_COLLAPSED_BASE_SIZE;
+  }
+  return expanded ? COMPACT_HUD_EXPANDED_BASE_SIZE : COMPACT_HUD_COLLAPSED_BASE_SIZE;
+}
+
+function scaledCompactSize(scale = compactScale, expanded = isCompactExpanded, topStrip = isCompactTopStrip) {
   const safeScale = clampCompactScale(scale);
+  const baseSize = compactBaseSize(expanded, topStrip);
   return {
-    width: Math.round(COMPACT_BASE_SIZE.width * safeScale),
-    height: Math.round(COMPACT_BASE_SIZE.height * safeScale)
+    width: Math.round(baseSize.width * safeScale),
+    height: Math.round(baseSize.height * safeScale)
   };
 }
 
-function compactMinimumSize() {
-  return scaledCompactSize(COMPACT_SCALE_LIMITS.min);
+function compactMinimumSize(topStrip = isCompactTopStrip) {
+  return scaledCompactSize(COMPACT_SCALE_LIMITS.min, false, topStrip);
 }
 
 async function startApp() {
@@ -102,12 +127,13 @@ function createWindow() {
     window.webContents.send("window:alwaysOnTopChanged", isAlwaysOnTop);
     window.webContents.send("window:compactChanged", isCompactMode);
     window.webContents.send("window:compactScaleChanged", compactScale);
+    window.webContents.send("window:compactDisplayModeChanged", compactDisplayMode());
   });
 
   window.once("ready-to-show", () => {
     if (window.isDestroyed()) return;
     window.show();
-    placeWindowTopRight(window);
+    placeWindow(window);
   });
 
   window.on("show", () => {
@@ -127,6 +153,48 @@ function createWindow() {
 
   window.loadFile(path.join(__dirname, "../renderer/index.html"));
   return window;
+}
+
+function placeWindow(window = getLiveWindow()) {
+  if (!window) return;
+  if (isCompactMode) {
+    setCompactTopStrip(false);
+    isCompactExpanded = false;
+    resizeCompactWindow(window);
+    placeCompactWindowTopCenter(window);
+  } else {
+    placeWindowTopRight(window);
+  }
+}
+
+function placeCompactWindowTopCenter(window = getLiveWindow()) {
+  if (!window) return;
+  const display = screen.getPrimaryDisplay();
+  const { width, height } = window.getBounds();
+  const { workArea } = display;
+  window.setBounds({
+    x: workArea.x + Math.round((workArea.width - width) / 2),
+    y: workArea.y + COMPACT_TOP_OFFSET,
+    width,
+    height
+  });
+}
+
+function resizeCompactWindow(window = getLiveWindow(), expanded = isCompactExpanded) {
+  if (!window) return null;
+  const bounds = window.getBounds();
+  const size = scaledCompactSize(compactScale, expanded);
+  const minSize = compactMinimumSize();
+  window.setMinimumSize(1, 1);
+  window.setBounds({
+    x: bounds.x,
+    y: bounds.y,
+    width: size.width,
+    height: size.height
+  });
+  window.setContentSize(size.width, size.height, false);
+  window.setMinimumSize(minSize.width, minSize.height);
+  return size;
 }
 
 function placeWindowTopRight(window = getLiveWindow()) {
@@ -187,6 +255,11 @@ function registerIpcHandlers() {
   ipcMain.handle("window:compactScale:get", () => compactScale);
   ipcMain.handle("window:compactScale:set", (_event, value) => setCompactScale(value));
   ipcMain.handle("window:compactMove", (_event, deltaX, deltaY) => moveCompactWindow(deltaX, deltaY));
+  ipcMain.handle("window:compactSnap", () => snapCompactWindow());
+  ipcMain.handle("window:compactExpanded:set", (_event, value) => setCompactExpanded(value));
+  ipcMain.handle("window:compactDisplayMode:get", () => compactDisplayMode());
+  ipcMain.handle("window:compactMousePassthrough:set", (_event, value) => setCompactMousePassthrough(value));
+  ipcMain.handle("window:cursorState:get", () => getCursorState());
 }
 
 function setAlwaysOnTop(value) {
@@ -202,13 +275,21 @@ function setCompactMode(value) {
   isCompactMode = Boolean(value);
   const window = getLiveWindow();
   if (window) {
-    const size = isCompactMode ? scaledCompactSize() : WINDOW_SIZES.full;
-    const minSize = isCompactMode ? compactMinimumSize() : WINDOW_SIZES.full;
     window.setHasShadow(!isCompactMode);
     window.setSkipTaskbar(isCompactMode);
-    window.setMinimumSize(minSize.width, minSize.height);
-    window.setSize(size.width, size.height, false);
-    placeWindowTopRight(window);
+    if (isCompactMode) {
+      setCompactTopStrip(false);
+      isCompactExpanded = false;
+      resizeCompactWindow(window, false);
+      placeCompactWindowTopCenter(window);
+    } else {
+      setCompactTopStrip(false);
+      isCompactExpanded = false;
+      setCompactMousePassthrough(false);
+      window.setMinimumSize(WINDOW_SIZES.full.width, WINDOW_SIZES.full.height);
+      window.setSize(WINDOW_SIZES.full.width, WINDOW_SIZES.full.height, false);
+      placeWindowTopRight(window);
+    }
   }
   sendToWindow("window:compactChanged", isCompactMode);
   sendToWindow("window:compactScaleChanged", compactScale);
@@ -220,13 +301,54 @@ function setCompactScale(value) {
   compactScale = clampCompactScale(value);
   const window = getLiveWindow();
   if (window && isCompactMode) {
-    const size = scaledCompactSize();
-    const minSize = compactMinimumSize();
-    window.setMinimumSize(minSize.width, minSize.height);
-    window.setSize(size.width, size.height, false);
+    resizeCompactWindow(window);
+    if (isCompactTopStrip) {
+      snapCompactWindow();
+    } else {
+      placeCompactWindowTopCenter(window);
+    }
   }
   sendToWindow("window:compactScaleChanged", compactScale);
   return compactScale;
+}
+
+function setCompactExpanded(value) {
+  isCompactExpanded = Boolean(value);
+  const window = getLiveWindow();
+  if (window && isCompactMode) {
+    resizeCompactWindow(window, isCompactExpanded);
+  }
+  if (isCompactExpanded) setCompactMousePassthrough(false);
+  return isCompactExpanded;
+}
+
+function setCompactTopStrip(value) {
+  const nextValue = Boolean(value);
+  if (isCompactTopStrip === nextValue) return isCompactTopStrip;
+  isCompactTopStrip = nextValue;
+  if (!isCompactTopStrip) setCompactMousePassthrough(false);
+  sendToWindow("window:compactDisplayModeChanged", compactDisplayMode());
+  return isCompactTopStrip;
+}
+
+function setCompactMousePassthrough(value) {
+  const window = getLiveWindow();
+  const nextValue = Boolean(value) && isCompactMode && isCompactTopStrip && !isCompactExpanded;
+  if (isCompactMousePassthrough === nextValue) return isCompactMousePassthrough;
+  isCompactMousePassthrough = nextValue;
+  if (window) {
+    window.setIgnoreMouseEvents(isCompactMousePassthrough, { forward: true });
+  }
+  return isCompactMousePassthrough;
+}
+
+function getCursorState() {
+  const window = getLiveWindow();
+  const cursor = screen.getCursorScreenPoint();
+  return {
+    cursor,
+    windowBounds: window ? window.getBounds() : null
+  };
 }
 
 function moveCompactWindow(deltaX, deltaY) {
@@ -242,7 +364,58 @@ function moveCompactWindow(deltaX, deltaY) {
   const x = Math.round(bounds.x + parsedDeltaX);
   const y = Math.round(bounds.y + parsedDeltaY);
   window.setPosition(x, y, false);
-  return { x, y };
+  return { x, y, snapped: false, displayMode: compactDisplayMode() };
+}
+
+function snapCompactWindow() {
+  const window = getLiveWindow();
+  if (!window) throw new Error("Main window has not been created.");
+  if (!isCompactMode) throw new Error("Compact window snapping is only available in compact mode.");
+  const bounds = window.getBounds();
+  const next = snapCompactPosition(bounds.x, bounds.y, bounds.width, bounds.height);
+  const nextTopStrip = next.displayMode === "topStrip";
+  const modeChanged = isCompactTopStrip !== nextTopStrip;
+  const wasExpanded = isCompactExpanded;
+  setCompactTopStrip(nextTopStrip);
+  isCompactExpanded = false;
+  if (modeChanged || wasExpanded) resizeCompactWindow(window, false);
+  if (next.snapped || modeChanged) window.setPosition(next.x, next.y, false);
+  if (!nextTopStrip) setCompactMousePassthrough(false);
+  return { ...next, displayMode: compactDisplayMode() };
+}
+
+function snapCompactPosition(x, y, width, height) {
+  const display = screen.getDisplayNearestPoint({
+    x: x + Math.round(width / 2),
+    y: y + Math.round(height / 2)
+  });
+  const { workArea } = display;
+  const targetX = workArea.x + Math.round((workArea.width - width) / 2);
+  const stripTargetY = workArea.y + COMPACT_STRIP_TOP_OFFSET;
+  const nearStripTopY = y <= stripTargetY + COMPACT_STRIP_TOP_SNAP_DISTANCE;
+  if (nearStripTopY) {
+    const nearStripCenterX = Math.abs(x - targetX) <= COMPACT_STRIP_CENTER_SNAP_DISTANCE;
+    return {
+      x: nearStripCenterX ? targetX : clampWindowX(x, width, workArea),
+      y: stripTargetY,
+      snapped: true,
+      displayMode: "topStrip"
+    };
+  }
+
+  const targetY = workArea.y + COMPACT_TOP_OFFSET;
+  const nearTopCenterX = Math.abs(x - targetX) <= COMPACT_CENTER_SNAP_DISTANCE;
+  const nearTopCenterY = Math.abs(y - targetY) <= COMPACT_TOP_SNAP_DISTANCE;
+
+  if (nearTopCenterX && nearTopCenterY) {
+    return { x: targetX, y: targetY, snapped: true, displayMode: "hud" };
+  }
+
+  return { x, y, snapped: false, displayMode: "hud" };
+}
+
+function clampWindowX(x, width, workArea) {
+  return Math.min(workArea.x + workArea.width - width, Math.max(workArea.x, Math.round(x)));
 }
 
 function toggleWindow() {

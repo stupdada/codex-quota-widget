@@ -6,7 +6,7 @@
     <title>Codex Quota Widget</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body data-state="loading">
+  <body data-state="loading" data-view="compact" data-compact-display="hud" data-compact-expanded="false">
     <main class="widget">
       <div class="ambient ambient-a"></div>
       <div class="ambient ambient-b"></div>
@@ -100,29 +100,43 @@
         <span id="statusText">正在读取 Codex 额度...</span>
       </footer>
 
-      <section id="compactShell" class="compact-shell" aria-label="Codex 额度悬浮球">
-        <div id="compactOrb" class="compact-orb" aria-label="7天窗口和5小时窗口剩余额度">
-          <div class="orb-half orb-weekly">
-            <div id="compactWeeklyFill" class="orb-fill weekly-fill"></div>
-            <div id="compactWeeklyIdeal" class="orb-ideal" aria-hidden="true"></div>
-            <div id="compactWeeklyIdealSurface" class="orb-ideal-surface" aria-hidden="true"></div>
-            <div id="compactWeeklySurface" class="orb-actual-surface" aria-hidden="true"></div>
-            <span class="orb-label">7d</span>
-            <strong id="compactWeeklyText">--</strong>
+      <section id="compactShell" class="compact-shell" aria-label="Codex 额度 HUD">
+        <div id="compactHud" class="compact-hud" aria-label="7天窗口和5小时窗口额度 HUD">
+          <div class="compact-hud-glow compact-hud-glow-weekly" aria-hidden="true"></div>
+          <div class="compact-hud-glow compact-hud-glow-short" aria-hidden="true"></div>
+          <div class="compact-hud-shine" aria-hidden="true"></div>
+
+          <div class="compact-metric compact-metric-weekly">
+            <div class="compact-metric-copy">
+              <span class="compact-metric-label">7d</span>
+              <strong id="compactWeeklyText">--</strong>
+              <span id="compactWeeklyDelta" class="compact-delta">--</span>
+            </div>
+            <div class="compact-track" aria-hidden="true">
+              <div id="compactWeeklyFill" class="compact-track-fill"></div>
+              <div id="compactWeeklyIdeal" class="compact-ideal-marker"></div>
+              <span id="compactWeeklyIdealText" class="compact-ideal-text">--</span>
+            </div>
           </div>
-          <div class="orb-half orb-short">
-            <div id="compactShortFill" class="orb-fill short-fill"></div>
-            <div id="compactShortIdeal" class="orb-ideal" aria-hidden="true"></div>
-            <div id="compactShortIdealSurface" class="orb-ideal-surface" aria-hidden="true"></div>
-            <div id="compactShortSurface" class="orb-actual-surface" aria-hidden="true"></div>
-            <span class="orb-label">5h</span>
-            <strong id="compactShortText">--</strong>
+
+          <div class="compact-divider" aria-hidden="true"></div>
+
+          <div class="compact-metric compact-metric-short">
+            <div class="compact-metric-copy">
+              <span class="compact-metric-label">5h</span>
+              <strong id="compactShortText">--</strong>
+              <span id="compactShortDelta" class="compact-delta">--</span>
+            </div>
+            <div class="compact-track" aria-hidden="true">
+              <div id="compactShortFill" class="compact-track-fill"></div>
+              <div id="compactShortIdeal" class="compact-ideal-marker"></div>
+              <span id="compactShortIdealText" class="compact-ideal-text">--</span>
+            </div>
           </div>
-          <div class="orb-divider" aria-hidden="true"></div>
-          <div class="orb-shine" aria-hidden="true"></div>
         </div>
 
-        <div class="compact-controls">
+        <div id="compactControls" class="compact-controls">
+          <button id="compactThemeBtn" class="compact-control-button compact-theme-button" title="切换 HUD 主题" aria-label="切换 HUD 主题">岛</button>
           <button id="compactExpandBtn" class="compact-control-button" title="展开窗口" aria-label="展开窗口">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M9 9 4 4M15 9l5-5M9 15l-5 5M15 15l5 5" />
@@ -135,17 +149,20 @@
           </button>
         </div>
 
-        <div id="compactAdviceText" class="compact-advice">--</div>
-        <div class="compact-reset-info" aria-label="窗口重置时间">
-          <div class="compact-reset-row compact-reset-short">
-            <strong>5h</strong>
-            <span class="compact-reset-action">重置</span>
-            <span id="compactShortResetText">--</span>
-          </div>
+        <div id="compactAdviceText" class="compact-advice" aria-label="使用建议">
+          <span id="compactAdviceKicker" class="compact-advice-kicker">状态</span>
+          <span id="compactAdviceValue" class="compact-advice-value">未知</span>
+        </div>
+        <div id="compactResetInfo" class="compact-reset-info" aria-label="窗口重置时间">
           <div class="compact-reset-row compact-reset-weekly">
             <strong>7d</strong>
-            <span class="compact-reset-action">重置</span>
-            <span id="compactWeeklyResetText">--</span>
+            <span class="compact-reset-label">重置时间</span>
+            <span id="compactWeeklyResetText" class="compact-detail-reset">--</span>
+          </div>
+          <div class="compact-reset-row compact-reset-short">
+            <strong>5h</strong>
+            <span class="compact-reset-label">重置时间</span>
+            <span id="compactShortResetText" class="compact-detail-reset">--</span>
           </div>
         </div>
         <button id="compactResizeHandle" class="compact-resize-handle" title="缩放" aria-label="缩放"></button>

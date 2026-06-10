@@ -12,6 +12,11 @@ contextBridge.exposeInMainWorld("codexQuota", {
   getCompactScale: () => ipcRenderer.invoke("window:compactScale:get"),
   setCompactScale: (value) => ipcRenderer.invoke("window:compactScale:set", value),
   moveCompactWindow: (deltaX, deltaY) => ipcRenderer.invoke("window:compactMove", deltaX, deltaY),
+  snapCompactWindow: () => ipcRenderer.invoke("window:compactSnap"),
+  setCompactExpanded: (value) => ipcRenderer.invoke("window:compactExpanded:set", value),
+  getCompactDisplayMode: () => ipcRenderer.invoke("window:compactDisplayMode:get"),
+  setCompactMousePassthrough: (value) => ipcRenderer.invoke("window:compactMousePassthrough:set", value),
+  getCursorState: () => ipcRenderer.invoke("window:cursorState:get"),
   onQuotaChanged: (callback) => {
     ipcRenderer.on("quota:changed", (_event, value) => callback(value));
   },
@@ -23,5 +28,8 @@ contextBridge.exposeInMainWorld("codexQuota", {
   },
   onCompactScaleChanged: (callback) => {
     ipcRenderer.on("window:compactScaleChanged", (_event, value) => callback(value));
+  },
+  onCompactDisplayModeChanged: (callback) => {
+    ipcRenderer.on("window:compactDisplayModeChanged", (_event, value) => callback(value));
   }
 });
