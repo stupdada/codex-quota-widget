@@ -1,7 +1,8 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("codexQuota", {
-  getQuota: () => ipcRenderer.invoke("quota:get"),
+  getQuotaState: () => ipcRenderer.invoke("quota:state"),
+  refreshQuota: () => ipcRenderer.invoke("quota:refresh"),
   minimize: () => ipcRenderer.invoke("window:minimize"),
   close: () => ipcRenderer.invoke("window:close"),
   getAlwaysOnTop: () => ipcRenderer.invoke("window:alwaysOnTop:get"),
@@ -11,8 +12,8 @@ contextBridge.exposeInMainWorld("codexQuota", {
   getCompactScale: () => ipcRenderer.invoke("window:compactScale:get"),
   setCompactScale: (value) => ipcRenderer.invoke("window:compactScale:set", value),
   moveCompactWindow: (deltaX, deltaY) => ipcRenderer.invoke("window:compactMove", deltaX, deltaY),
-  onRefresh: (callback) => {
-    ipcRenderer.on("quota:refresh", callback);
+  onQuotaChanged: (callback) => {
+    ipcRenderer.on("quota:changed", (_event, value) => callback(value));
   },
   onAlwaysOnTopChanged: (callback) => {
     ipcRenderer.on("window:alwaysOnTopChanged", (_event, value) => callback(value));

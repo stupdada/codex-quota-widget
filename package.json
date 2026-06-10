@@ -30,6 +30,8 @@
     "dev": "electron .",
     "start": "electron .",
     "test:pace": "node scripts/verify-pace-advice.js",
+    "test:quota-store": "node scripts/verify-quota-store.js",
+    "test": "npm run test:pace && npm run test:quota-store",
     "build": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win portable",
     "build:dir": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --dir"
   },
@@ -41,7 +43,10 @@
     },
     "files": [
       "src/**/*",
-      "assets/**/*",
+      "assets/app-icon.png",
+      "assets/app-icon.ico",
+      "assets/app-icon-tray-16.png",
+      "assets/app-icon-256.png",
       "package.json"
     ],
     "win": {

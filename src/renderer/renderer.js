@@ -6,11 +6,12 @@ const state = {
   compactScale: 0.65,
   resizing: null,
   moving: null,
+  resizeFrame: null,
+  moveFrame: null,
   loading: false
 };
 
 const COMPACT_SCALE_LIMITS = { min: 0.33, max: 1.8 };
-const AUTO_REFRESH_INTERVAL_MS = 3 * 60 * 1000;
 
 function requiredElement(id) {
   const element = document.getElementById(id);
@@ -402,6 +403,33 @@ function renderError(error) {
   renderPaceAdvice(null);
 }
 
+function renderQuotaState(snapshot) {
+  const quota = snapshot?.quota || null;
+  const error = snapshot?.error || null;
+  const isRefreshing = Boolean(snapshot?.refreshing || snapshot?.status === "loading");
+  state.loading = isRefreshing;
+
+  if (quota) {
+    renderQuota(quota);
+    if (isRefreshing) {
+      setText(els.stateText, t("loading"));
+      setText(els.statusText, t("statusLoading"));
+    } else if (snapshot?.status === "error" && error) {
+      state.error = error;
+      setText(els.stateText, t("error"));
+      setText(els.statusText, `${t("statusError")}: ${friendlyErrorMessage(error)}`);
+    }
+    return;
+  }
+
+  if (snapshot?.status === "error") {
+    renderError(error);
+    state.loading = false;
+  } else {
+    renderLoading();
+  }
+}
+
 function friendlyErrorMessage(error) {
   const message = error?.message || "";
   if (message.toLowerCase().includes("authentication required")) {
@@ -413,11 +441,15 @@ function friendlyErrorMessage(error) {
 async function refreshQuota() {
   if (state.loading) return;
   state.loading = true;
-  renderLoading();
+  if (state.quota) {
+    renderQuotaState({ status: "loading", quota: state.quota, refreshing: true });
+  } else {
+    renderLoading();
+  }
 
   try {
-    const quota = await window.codexQuota.getQuota();
-    renderQuota(quota);
+    const quotaState = await window.codexQuota.refreshQuota();
+    renderQuotaState(quotaState);
   } catch (error) {
     renderError(error);
   } finally {
@@ -482,7 +514,8 @@ function startCompactResize(event) {
   state.resizing = {
     startX: event.screenX,
     startY: event.screenY,
-    startScale: state.compactScale
+    startScale: state.compactScale,
+    pendingScale: state.compactScale
   };
   els.body.classList.add("is-resizing");
   window.addEventListener("mousemove", handleCompactResize);
@@ -497,12 +530,29 @@ function handleCompactResize(event) {
   const dominantDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
   const nextScale = clampCompactScale(state.resizing.startScale + dominantDelta / 180);
   renderCompactScale(nextScale);
-  window.codexQuota.setCompactScale(nextScale).then(renderCompactScale).catch(reportInteractionError);
+  scheduleCompactScaleCommit(nextScale);
+}
+
+function scheduleCompactScaleCommit(scale) {
+  if (!state.resizing) return;
+  state.resizing.pendingScale = scale;
+  if (state.resizeFrame) return;
+
+  state.resizeFrame = window.requestAnimationFrame(() => {
+    state.resizeFrame = null;
+    const pendingScale = state.resizing?.pendingScale;
+    if (!Number.isFinite(Number(pendingScale))) return;
+    window.codexQuota.setCompactScale(pendingScale).catch(reportInteractionError);
+  });
 }
 
 function stopCompactResize() {
   if (!state.resizing) return;
   window.removeEventListener("mousemove", handleCompactResize);
+  if (state.resizeFrame) {
+    window.cancelAnimationFrame(state.resizeFrame);
+    state.resizeFrame = null;
+  }
   els.body.classList.remove("is-resizing");
   state.resizing = null;
   window.codexQuota.setCompactScale(state.compactScale).then(renderCompactScale).catch(reportInteractionError);
@@ -513,7 +563,9 @@ function startCompactMove(event) {
   event.preventDefault();
   state.moving = {
     lastX: event.screenX,
-    lastY: event.screenY
+    lastY: event.screenY,
+    pendingDeltaX: 0,
+    pendingDeltaY: 0
   };
   els.body.classList.add("is-moving");
   window.addEventListener("mousemove", handleCompactMove);
@@ -527,12 +579,39 @@ function handleCompactMove(event) {
   const deltaY = event.screenY - state.moving.lastY;
   state.moving.lastX = event.screenX;
   state.moving.lastY = event.screenY;
+  state.moving.pendingDeltaX += deltaX;
+  state.moving.pendingDeltaY += deltaY;
+  scheduleCompactMove();
+}
+
+function scheduleCompactMove() {
+  if (!state.moving || state.moveFrame) return;
+
+  state.moveFrame = window.requestAnimationFrame(() => {
+    state.moveFrame = null;
+    if (!state.moving) return;
+    flushCompactMove();
+  });
+}
+
+function flushCompactMove() {
+  if (!state.moving) return;
+  const deltaX = state.moving.pendingDeltaX;
+  const deltaY = state.moving.pendingDeltaY;
+  state.moving.pendingDeltaX = 0;
+  state.moving.pendingDeltaY = 0;
+  if (deltaX === 0 && deltaY === 0) return;
   window.codexQuota.moveCompactWindow(deltaX, deltaY).catch(reportInteractionError);
 }
 
 function stopCompactMove() {
   if (!state.moving) return;
   window.removeEventListener("mousemove", handleCompactMove);
+  if (state.moveFrame) {
+    window.cancelAnimationFrame(state.moveFrame);
+    state.moveFrame = null;
+  }
+  flushCompactMove();
   els.body.classList.remove("is-moving");
   state.moving = null;
 }
@@ -572,14 +651,16 @@ els.pinBtn.addEventListener("click", async () => {
   renderPin(isPinned);
 });
 
-window.codexQuota.onRefresh(refreshQuota);
+window.codexQuota.onQuotaChanged(renderQuotaState);
 window.codexQuota.onAlwaysOnTopChanged(renderPin);
 window.codexQuota.onCompactChanged(renderCompactMode);
-window.codexQuota.onCompactScaleChanged(renderCompactScale);
+window.codexQuota.onCompactScaleChanged((value) => {
+  if (state.resizing) return;
+  renderCompactScale(value);
+});
 
 renderLoading();
 syncAlwaysOnTop();
 syncCompactMode();
 syncCompactScale();
-refreshQuota();
-setInterval(refreshQuota, AUTO_REFRESH_INTERVAL_MS);
+window.codexQuota.getQuotaState().then(renderQuotaState).catch(renderError);

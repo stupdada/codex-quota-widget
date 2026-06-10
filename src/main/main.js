@@ -1,12 +1,17 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } = require("electron");
 const path = require("node:path");
-const { getQuota } = require("./quota-service");
+const { QuotaStore } = require("./quota-store");
 
 const APP_ICON_PATH = path.join(__dirname, "../../assets/app-icon.png");
 const TRAY_ICON_PATH = path.join(__dirname, "../../assets/app-icon-tray-16.png");
+const HIDDEN_WINDOW_RELEASE_MS = 60 * 1000;
 
 let mainWindow;
 let tray;
+let quotaStore;
+let releaseWindowTimer;
+let ipcHandlersRegistered = false;
+let isQuitting = false;
 let isAlwaysOnTop = true;
 let isCompactMode = true;
 let compactScale = 0.65;
@@ -17,6 +22,15 @@ const WINDOW_SIZES = {
 
 const COMPACT_BASE_SIZE = { width: 210, height: 264 };
 const COMPACT_SCALE_LIMITS = { min: 0.33, max: 1.8 };
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", showWindow);
+  app.whenReady().then(startApp);
+}
 
 function clampCompactScale(value) {
   const scale = Number(value);
@@ -36,10 +50,30 @@ function compactMinimumSize() {
   return scaledCompactSize(COMPACT_SCALE_LIMITS.min);
 }
 
+async function startApp() {
+  if (process.platform === "win32") {
+    app.setAppUserModelId("cn.codex.quota.widget");
+  }
+
+  quotaStore = new QuotaStore({ userDataPath: app.getPath("userData") });
+  await quotaStore.loadCache();
+  quotaStore.on("state", (state) => sendToWindow("quota:changed", state));
+
+  registerIpcHandlers();
+  createWindow();
+  createTray();
+  quotaStore.refreshNow("startup").catch(() => {});
+
+  app.on("activate", showWindow);
+}
+
 function createWindow() {
+  const existingWindow = getLiveWindow();
+  if (existingWindow) return existingWindow;
+
   const initialSize = isCompactMode ? scaledCompactSize() : WINDOW_SIZES.full;
   const minCompactSize = compactMinimumSize();
-  mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: initialSize.width,
     height: initialSize.height,
     minWidth: minCompactSize.width,
@@ -55,24 +89,52 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      backgroundThrottling: true
     }
   });
 
-  mainWindow.setHasShadow(!isCompactMode);
+  mainWindow = window;
+  window.setHasShadow(!isCompactMode);
 
-  mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
-  mainWindow.once("ready-to-show", () => {
-    mainWindow.show();
-    placeWindowTopRight();
+  window.webContents.on("did-finish-load", () => {
+    window.webContents.send("quota:changed", quotaStore.getState());
+    window.webContents.send("window:alwaysOnTopChanged", isAlwaysOnTop);
+    window.webContents.send("window:compactChanged", isCompactMode);
+    window.webContents.send("window:compactScaleChanged", compactScale);
   });
+
+  window.once("ready-to-show", () => {
+    if (window.isDestroyed()) return;
+    window.show();
+    placeWindowTopRight(window);
+  });
+
+  window.on("show", () => {
+    cancelWindowRelease();
+    quotaStore.setWindowVisible(true);
+    quotaStore.refreshNow("window-show").catch(() => {});
+  });
+
+  window.on("hide", () => {
+    quotaStore.setWindowVisible(false);
+    scheduleWindowRelease();
+  });
+
+  window.on("closed", () => {
+    if (mainWindow === window) mainWindow = null;
+  });
+
+  window.loadFile(path.join(__dirname, "../renderer/index.html"));
+  return window;
 }
 
-function placeWindowTopRight() {
+function placeWindowTopRight(window = getLiveWindow()) {
+  if (!window) return;
   const display = screen.getPrimaryDisplay();
-  const { width, height } = mainWindow.getBounds();
+  const { width, height } = window.getBounds();
   const { workArea } = display;
-  mainWindow.setBounds({
+  window.setBounds({
     x: workArea.x + workArea.width - width - 24,
     y: workArea.y + 24,
     width,
@@ -95,7 +157,7 @@ function rebuildTrayMenu() {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: "显示/隐藏", click: toggleWindow },
-      { label: "刷新额度", click: () => mainWindow.webContents.send("quota:refresh") },
+      { label: "刷新额度", click: () => quotaStore.refreshNow("tray-manual").catch(() => {}) },
       {
         label: isCompactMode ? "展开窗口" : "紧凑窗口",
         click: () => setCompactMode(!isCompactMode)
@@ -105,81 +167,19 @@ function rebuildTrayMenu() {
         click: () => setAlwaysOnTop(!isAlwaysOnTop)
       },
       { type: "separator" },
-      { label: "退出", click: () => app.quit() }
+      { label: "退出", click: quitApp }
     ])
   );
 }
 
-function setAlwaysOnTop(value) {
-  isAlwaysOnTop = Boolean(value);
-  mainWindow.setAlwaysOnTop(isAlwaysOnTop);
-  mainWindow.webContents.send("window:alwaysOnTopChanged", isAlwaysOnTop);
-  rebuildTrayMenu();
-  return isAlwaysOnTop;
-}
+function registerIpcHandlers() {
+  if (ipcHandlersRegistered) return;
+  ipcHandlersRegistered = true;
 
-function setCompactMode(value) {
-  isCompactMode = Boolean(value);
-  const size = isCompactMode ? scaledCompactSize() : WINDOW_SIZES.full;
-  const minSize = isCompactMode ? compactMinimumSize() : WINDOW_SIZES.full;
-  mainWindow.setHasShadow(!isCompactMode);
-  mainWindow.setSkipTaskbar(isCompactMode);
-  mainWindow.setMinimumSize(minSize.width, minSize.height);
-  mainWindow.setSize(size.width, size.height, false);
-  placeWindowTopRight();
-  mainWindow.webContents.send("window:compactChanged", isCompactMode);
-  mainWindow.webContents.send("window:compactScaleChanged", compactScale);
-  rebuildTrayMenu();
-  return isCompactMode;
-}
-
-function setCompactScale(value) {
-  compactScale = clampCompactScale(value);
-  mainWindow.webContents.send("window:compactScaleChanged", compactScale);
-  if (isCompactMode) {
-    const size = scaledCompactSize();
-    const minSize = compactMinimumSize();
-    mainWindow.setMinimumSize(minSize.width, minSize.height);
-    mainWindow.setSize(size.width, size.height, false);
-  }
-  return compactScale;
-}
-
-function moveCompactWindow(deltaX, deltaY) {
-  if (!mainWindow) throw new Error("Main window has not been created.");
-  if (!isCompactMode) throw new Error("Compact window movement is only available in compact mode.");
-  const parsedDeltaX = Number(deltaX);
-  const parsedDeltaY = Number(deltaY);
-  if (!Number.isFinite(parsedDeltaX) || !Number.isFinite(parsedDeltaY)) {
-    throw new Error("Compact window movement requires finite numeric deltas.");
-  }
-  const bounds = mainWindow.getBounds();
-  const x = Math.round(bounds.x + parsedDeltaX);
-  const y = Math.round(bounds.y + parsedDeltaY);
-  mainWindow.setPosition(x, y, false);
-  return { x, y };
-}
-
-function toggleWindow() {
-  if (mainWindow.isVisible()) {
-    mainWindow.hide();
-  } else {
-    mainWindow.show();
-    mainWindow.focus();
-  }
-}
-
-app.whenReady().then(() => {
-  if (process.platform === "win32") {
-    app.setAppUserModelId("cn.codex.quota.widget");
-  }
-
-  createWindow();
-  createTray();
-
-  ipcMain.handle("quota:get", async () => getQuota());
-  ipcMain.handle("window:minimize", () => mainWindow.hide());
-  ipcMain.handle("window:close", () => app.quit());
+  ipcMain.handle("quota:state", () => quotaStore.getState());
+  ipcMain.handle("quota:refresh", () => quotaStore.refreshNow("manual"));
+  ipcMain.handle("window:minimize", hideWindow);
+  ipcMain.handle("window:close", quitApp);
   ipcMain.handle("window:alwaysOnTop:get", () => isAlwaysOnTop);
   ipcMain.handle("window:alwaysOnTop:set", (_event, value) => setAlwaysOnTop(value));
   ipcMain.handle("window:compact:get", () => isCompactMode);
@@ -187,12 +187,134 @@ app.whenReady().then(() => {
   ipcMain.handle("window:compactScale:get", () => compactScale);
   ipcMain.handle("window:compactScale:set", (_event, value) => setCompactScale(value));
   ipcMain.handle("window:compactMove", (_event, deltaX, deltaY) => moveCompactWindow(deltaX, deltaY));
+}
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
+function setAlwaysOnTop(value) {
+  isAlwaysOnTop = Boolean(value);
+  const window = getLiveWindow();
+  if (window) window.setAlwaysOnTop(isAlwaysOnTop);
+  sendToWindow("window:alwaysOnTopChanged", isAlwaysOnTop);
+  rebuildTrayMenu();
+  return isAlwaysOnTop;
+}
+
+function setCompactMode(value) {
+  isCompactMode = Boolean(value);
+  const window = getLiveWindow();
+  if (window) {
+    const size = isCompactMode ? scaledCompactSize() : WINDOW_SIZES.full;
+    const minSize = isCompactMode ? compactMinimumSize() : WINDOW_SIZES.full;
+    window.setHasShadow(!isCompactMode);
+    window.setSkipTaskbar(isCompactMode);
+    window.setMinimumSize(minSize.width, minSize.height);
+    window.setSize(size.width, size.height, false);
+    placeWindowTopRight(window);
+  }
+  sendToWindow("window:compactChanged", isCompactMode);
+  sendToWindow("window:compactScaleChanged", compactScale);
+  rebuildTrayMenu();
+  return isCompactMode;
+}
+
+function setCompactScale(value) {
+  compactScale = clampCompactScale(value);
+  const window = getLiveWindow();
+  if (window && isCompactMode) {
+    const size = scaledCompactSize();
+    const minSize = compactMinimumSize();
+    window.setMinimumSize(minSize.width, minSize.height);
+    window.setSize(size.width, size.height, false);
+  }
+  sendToWindow("window:compactScaleChanged", compactScale);
+  return compactScale;
+}
+
+function moveCompactWindow(deltaX, deltaY) {
+  const window = getLiveWindow();
+  if (!window) throw new Error("Main window has not been created.");
+  if (!isCompactMode) throw new Error("Compact window movement is only available in compact mode.");
+  const parsedDeltaX = Number(deltaX);
+  const parsedDeltaY = Number(deltaY);
+  if (!Number.isFinite(parsedDeltaX) || !Number.isFinite(parsedDeltaY)) {
+    throw new Error("Compact window movement requires finite numeric deltas.");
+  }
+  const bounds = window.getBounds();
+  const x = Math.round(bounds.x + parsedDeltaX);
+  const y = Math.round(bounds.y + parsedDeltaY);
+  window.setPosition(x, y, false);
+  return { x, y };
+}
+
+function toggleWindow() {
+  const window = getLiveWindow();
+  if (window?.isVisible()) {
+    hideWindow();
+  } else {
+    showWindow();
+  }
+}
+
+function showWindow() {
+  const window = getLiveWindow();
+  if (!window) {
+    createWindow();
+    return;
+  }
+
+  cancelWindowRelease();
+  if (!window.isVisible()) window.show();
+  window.focus();
+  quotaStore?.setWindowVisible(true);
+  quotaStore?.refreshNow("window-show").catch(() => {});
+}
+
+function hideWindow() {
+  const window = getLiveWindow();
+  if (window) window.hide();
+}
+
+function scheduleWindowRelease() {
+  if (isQuitting) return;
+  cancelWindowRelease();
+  releaseWindowTimer = setTimeout(() => {
+    const window = getLiveWindow();
+    if (window && !window.isVisible()) {
+      window.destroy();
+    }
+  }, HIDDEN_WINDOW_RELEASE_MS);
+}
+
+function cancelWindowRelease() {
+  if (releaseWindowTimer) {
+    clearTimeout(releaseWindowTimer);
+    releaseWindowTimer = null;
+  }
+}
+
+function quitApp() {
+  isQuitting = true;
+  cancelWindowRelease();
+  quotaStore?.destroy();
+  app.quit();
+}
+
+function getLiveWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
+  return null;
+}
+
+function sendToWindow(channel, ...args) {
+  const window = getLiveWindow();
+  if (!window || window.webContents.isDestroyed()) return;
+  window.webContents.send(channel, ...args);
+}
+
+app.on("before-quit", () => {
+  isQuitting = true;
+  cancelWindowRelease();
+  quotaStore?.destroy();
 });
 
 app.on("window-all-closed", (event) => {
-  event.preventDefault();
+  if (!isQuitting) event.preventDefault();
 });
