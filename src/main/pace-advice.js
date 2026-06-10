@@ -1,4 +1,6 @@
 const PACE_DELTA_THRESHOLD = 15;
+const URGENT_PACE_DELTA_MIN = 8;
+const URGENT_PACE_DELTA_MAX = 35;
 const CRITICAL_REMAINING_PERCENT = 5;
 const LONG_WINDOW_MINUTES = 24 * 60;
 
@@ -11,16 +13,11 @@ function buildPaceAdvice(snapshot, now = new Date()) {
   return {
     longWindow,
     shortWindow,
-    overall: longWindow
-      ? summarize(longWindow, "long")
-      : {
-          status: "unknown",
-          severity: "muted",
-          reasonCode: "missingLongWindow",
-          source: "long"
-        },
+    overall: summarizeOverall(longWindow, shortWindow),
     thresholds: {
       paceDelta: PACE_DELTA_THRESHOLD,
+      urgentPaceDeltaMin: URGENT_PACE_DELTA_MIN,
+      urgentPaceDeltaMax: URGENT_PACE_DELTA_MAX,
       criticalRemainingPercent: CRITICAL_REMAINING_PERCENT
     }
   };
@@ -120,6 +117,49 @@ function summarize(window, source) {
   };
 }
 
+function summarizeOverall(longWindow, shortWindow) {
+  if (!longWindow) {
+    return {
+      status: "unknown",
+      severity: "muted",
+      reasonCode: "missingLongWindow",
+      source: "long"
+    };
+  }
+
+  if (longWindow.status === "critical" || longWindow.status === "slow" || longWindow.status === "unknown") {
+    return summarize(longWindow, "long");
+  }
+
+  if (shortWindow?.status === "critical" || shortWindow?.status === "slow") {
+    return {
+      status: "slow",
+      severity: "warning",
+      reasonCode: "shortWindowTight",
+      source: "short"
+    };
+  }
+
+  const urgentThreshold = urgentPaceDeltaThreshold(longWindow);
+  if (urgentThreshold !== null && longWindow.paceDelta >= urgentThreshold) {
+    return {
+      status: "urgent",
+      severity: "urgent",
+      reasonCode: "urgentAhead",
+      source: "combined"
+    };
+  }
+
+  return summarize(longWindow, "long");
+}
+
+function urgentPaceDeltaThreshold(longWindow) {
+  if (longWindow?.idealRemainingPercent === null || longWindow?.idealRemainingPercent === undefined) return null;
+  const timeLeft = Number(longWindow?.idealRemainingPercent);
+  if (!Number.isFinite(timeLeft)) return null;
+  return round1(clampRange(timeLeft * 0.5 + 5, URGENT_PACE_DELTA_MIN, URGENT_PACE_DELTA_MAX));
+}
+
 function toTimeMs(value) {
   const date = value instanceof Date ? value : new Date(value);
   const time = date.getTime();
@@ -131,6 +171,10 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, value));
 }
 
+function clampRange(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function round1(value) {
   return Math.round(value * 10) / 10;
 }
@@ -139,6 +183,9 @@ module.exports = {
   buildPaceAdvice,
   analyzeWindow,
   selectWindowKeys,
+  urgentPaceDeltaThreshold,
   PACE_DELTA_THRESHOLD,
+  URGENT_PACE_DELTA_MIN,
+  URGENT_PACE_DELTA_MAX,
   CRITICAL_REMAINING_PERCENT
 };

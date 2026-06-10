@@ -1,6 +1,6 @@
 {
   "name": "codex-quota-widget",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Codex 额度小组件 / Windows desktop widget for monitoring local Codex usage quota and usage pace.",
   "main": "src/main/main.js",
   "author": "Codex Quota Widget Contributors",

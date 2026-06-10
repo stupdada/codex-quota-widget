@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { buildPaceAdvice } = require("../src/main/pace-advice");
+const { buildPaceAdvice, urgentPaceDeltaThreshold } = require("../src/main/pace-advice");
 const { normalizeSnapshot } = require("../src/main/quota-service");
 
 const now = new Date("2026-06-09T00:00:00.000Z");
@@ -27,9 +27,12 @@ function makeSnapshot(weeklyRemainingPercent, weeklyRemainingTimePercent = 50, s
 
 const cases = [
   {
-    name: "7d time 50%, quota 80% => accelerate",
+    name: "7d time 50%, quota 80% and 5h normal => urgent overall",
     snapshot: makeSnapshot(80),
-    expected: "accelerate"
+    expected: "accelerate",
+    expectedOverall: "urgent",
+    expectedOverallReason: "urgentAhead",
+    expectedOverallSource: "combined"
   },
   {
     name: "7d time 50%, quota 50% => normal",
@@ -52,7 +55,7 @@ const cases = [
     expected: "critical"
   },
   {
-    name: "7d delta +15 boundary => accelerate",
+    name: "7d delta +15 boundary and 5h normal => accelerate overall",
     snapshot: makeSnapshot(65),
     expected: "accelerate"
   },
@@ -66,17 +69,99 @@ const cases = [
     snapshot: makeSnapshot(50, 50, 95),
     expected: "normal",
     expectedShort: "accelerate"
+  },
+  {
+    name: "7d ahead but 5h behind => slow overall",
+    snapshot: makeSnapshot(80, 50, 20),
+    expected: "accelerate",
+    expectedShort: "slow",
+    expectedOverall: "slow",
+    expectedOverallReason: "shortWindowTight",
+    expectedOverallSource: "short"
+  },
+  {
+    name: "7d ahead but 5h normal reaches dynamic threshold => urgent overall",
+    snapshot: makeSnapshot(80, 50, 50),
+    expected: "accelerate",
+    expectedShort: "normal",
+    expectedOverall: "urgent",
+    expectedOverallReason: "urgentAhead",
+    expectedOverallSource: "combined"
+  },
+  {
+    name: "7d ahead and 5h ahead reaches dynamic threshold => urgent overall",
+    snapshot: makeSnapshot(80, 50, 80),
+    expected: "accelerate",
+    expectedShort: "accelerate",
+    expectedOverall: "urgent",
+    expectedOverallReason: "urgentAhead",
+    expectedOverallSource: "combined"
+  },
+  {
+    name: "7d delta +35 boundary and 5h normal => urgent overall",
+    snapshot: makeSnapshot(85, 50, 50),
+    expected: "accelerate",
+    expectedShort: "normal",
+    expectedOverall: "urgent",
+    expectedOverallReason: "urgentAhead",
+    expectedOverallSource: "combined"
+  },
+  {
+    name: "7d urgent delta but 5h behind => slow overall",
+    snapshot: makeSnapshot(90, 50, 20),
+    expected: "accelerate",
+    expectedShort: "slow",
+    expectedOverall: "slow",
+    expectedOverallReason: "shortWindowTight",
+    expectedOverallSource: "short"
+  },
+  {
+    name: "7d time 20%, quota 35% reaches lower dynamic threshold => urgent overall",
+    snapshot: makeSnapshot(35, 20, 50),
+    expected: "accelerate",
+    expectedShort: "normal",
+    expectedOverall: "urgent",
+    expectedOverallReason: "urgentAhead",
+    expectedOverallSource: "combined"
+  },
+  {
+    name: "7d time 20%, quota 34% misses lower dynamic threshold => normal overall",
+    snapshot: makeSnapshot(34, 20, 50),
+    expected: "normal",
+    expectedShort: "normal",
+    expectedOverall: "normal"
+  },
+  {
+    name: "7d time 0%, quota 8% reaches minimum dynamic threshold => urgent overall",
+    snapshot: makeSnapshot(8, 0, 50),
+    expected: "normal",
+    expectedShort: "normal",
+    expectedOverall: "urgent",
+    expectedOverallReason: "urgentAhead",
+    expectedOverallSource: "combined"
   }
 ];
 
 for (const testCase of cases) {
   const advice = buildPaceAdvice(testCase.snapshot, now);
   assert.equal(advice.longWindow.status, testCase.expected, testCase.name);
-  assert.equal(advice.overall.status, testCase.expected, `${testCase.name} overall`);
+  assert.equal(advice.overall.status, testCase.expectedOverall ?? testCase.expected, `${testCase.name} overall`);
   if (testCase.expectedShort) {
     assert.equal(advice.shortWindow.status, testCase.expectedShort, `${testCase.name} short`);
   }
+  if (testCase.expectedOverallReason) {
+    assert.equal(advice.overall.reasonCode, testCase.expectedOverallReason, `${testCase.name} overall reason`);
+  }
+  if (testCase.expectedOverallSource) {
+    assert.equal(advice.overall.source, testCase.expectedOverallSource, `${testCase.name} overall source`);
+  }
 }
+
+assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: 80 }), 35, "urgent threshold clamps high");
+assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: 50 }), 30, "urgent threshold at midpoint");
+assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: 20 }), 15, "urgent threshold near reset");
+assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: 0 }), 8, "urgent threshold clamps low");
+assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: null }), null, "urgent threshold requires time left");
 
 const normalized = normalizeSnapshot({
   limitId: "codex",

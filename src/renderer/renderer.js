@@ -76,6 +76,7 @@ const els = {
   compactAdviceText: requiredElement("compactAdviceText"),
   compactAdviceKicker: requiredElement("compactAdviceKicker"),
   compactAdviceValue: requiredElement("compactAdviceValue"),
+  compactPaceSignal: requiredElement("compactPaceSignal"),
   compactResetLabels: requiredElements(".compact-reset-label"),
   compactResetInfo: requiredElement("compactResetInfo"),
   compactShortResetText: requiredElement("compactShortResetText"),
@@ -131,6 +132,7 @@ const copy = {
     idealRemaining: "理想剩余",
     paceDelta: "偏差",
     status: {
+      urgent: "加速蹬！",
       accelerate: "可加快使用",
       normal: "正常",
       slow: "建议减速",
@@ -142,6 +144,7 @@ const copy = {
       onTrack: "7天窗口消耗与当前时间进度基本一致",
       behind: "7天窗口剩余额度低于当前时间进度",
       critical: "7天窗口剩余额度不高于 5%",
+      urgentAhead: "7天窗口剩余额度明显高于理想剩余额度",
       insufficientData: "7天窗口缺少 reset 时间或窗口时长",
       missingLongWindow: "没有可用于主判断的 7天窗口数据"
     },
@@ -178,6 +181,7 @@ const copy = {
     idealRemaining: "Ideal",
     paceDelta: "Delta",
     status: {
+      urgent: "Use soon",
       accelerate: "Speed up",
       normal: "Normal",
       slow: "Slow down",
@@ -189,6 +193,7 @@ const copy = {
       onTrack: "The 7-day usage matches the current time progress",
       behind: "The 7-day quota is below the current time progress",
       critical: "The 7-day quota is at or below 5%",
+      urgentAhead: "The 7-day quota is well above the ideal remaining quota",
       insufficientData: "The 7-day reset time or window duration is missing",
       missingLongWindow: "No 7-day window data is available for the main decision"
     },
@@ -359,20 +364,23 @@ function renderCompactAdvice(advice) {
   setText(els.compactAdviceValue, compactText.value);
   setAttr(els.compactAdviceText, "title", t(`status.${overall.status}`));
   setAttr(els.compactAdviceText, "aria-label", t(`status.${overall.status}`));
-  els.compactAdviceText.className = `compact-advice ${overall.severity}`;
+  els.compactAdviceText.className = `compact-advice ${overall.severity} ${overall.status}`;
+  renderCompactPaceSignal(overall);
 }
 
 function compactAdviceText(status) {
-  const statusKey = ["accelerate", "normal", "slow", "critical", "unknown"].includes(status) ? status : "unknown";
+  const statusKey = ["urgent", "accelerate", "normal", "slow", "critical", "unknown"].includes(status) ? status : "unknown";
   const labels = {
     zh: {
-      accelerate: { kicker: "建议", value: "加快" },
-      normal: { kicker: "状态", value: "正常" },
-      slow: { kicker: "建议", value: "减速" },
-      critical: { kicker: "风险", value: "暂停" },
+      urgent: { kicker: "加速", value: "蹬 ！" },
+      accelerate: { kicker: "余量", value: "充足" },
+      normal: { kicker: "节奏", value: "正常" },
+      slow: { kicker: "节奏", value: "偏快" },
+      critical: { kicker: "额度", value: "紧张" },
       unknown: { kicker: "状态", value: "未知" }
     },
     en: {
+      urgent: { kicker: "Use", value: "Soon" },
       accelerate: { kicker: "Use", value: "Fast" },
       normal: { kicker: "Status", value: "OK" },
       slow: { kicker: "Use", value: "Less" },
@@ -381,6 +389,16 @@ function compactAdviceText(status) {
     }
   };
   return (labels[state.lang] || labels.zh)[statusKey];
+}
+
+function renderCompactPaceSignal(overall) {
+  const status = ["urgent", "accelerate", "normal", "slow", "critical", "unknown"].includes(overall?.status)
+    ? overall.status
+    : "unknown";
+  const label = t(`status.${status}`);
+  els.compactPaceSignal.className = `compact-pace-signal ${status}`;
+  setAttr(els.compactPaceSignal, "title", label);
+  setAttr(els.compactPaceSignal, "aria-label", label);
 }
 
 function setCompactTrack(fillElement, idealElement, idealTextElement, actualValue, idealValue) {
