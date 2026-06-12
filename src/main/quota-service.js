@@ -1,6 +1,7 @@
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const { version: APP_VERSION } = require("../../package.json");
 const { buildPaceAdvice } = require("./pace-advice");
 
 const DEFAULT_TIMEOUT_MS = 12000;
@@ -177,7 +178,7 @@ function requestRateLimits() {
           clientInfo: {
             name: "codex-quota-widget",
             title: "Codex Quota Widget",
-            version: "0.1.1"
+            version: APP_VERSION
           },
           capabilities: null
         });

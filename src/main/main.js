@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } = require("electron");
+const fs = require("node:fs/promises");
 const path = require("node:path");
 const { QuotaStore } = require("./quota-store");
 const { COMPACT_LAYOUT } = require("../shared/compact-layout");
@@ -6,8 +7,15 @@ const { COMPACT_LAYOUT } = require("../shared/compact-layout");
 const APP_ICON_PATH = path.join(__dirname, "../../assets/app-icon.png");
 const TRAY_ICON_PATH = path.join(__dirname, "../../assets/app-icon-tray-16.png");
 const HIDDEN_WINDOW_RELEASE_MS = 60 * 1000;
+const SETTINGS_FILE_NAME = "widget-settings.json";
+const DEFAULT_SIGNAL_SETTINGS = {
+  recentFastBreathMs: 4000,
+  criticalBlinkMs: 3000,
+  quotaRefreshMs: 3 * 60 * 1000
+};
 
 let mainWindow;
+let settingsWindow;
 let tray;
 let quotaStore;
 let releaseWindowTimer;
@@ -19,6 +27,7 @@ let compactScale = 0.46;
 let isCompactExpanded = false;
 let isCompactTopStrip = false;
 let isCompactMousePassthrough = false;
+let signalSettings = { ...DEFAULT_SIGNAL_SETTINGS };
 
 const WINDOW_SIZES = {
   full: { width: 390, height: 336 }
@@ -80,7 +89,11 @@ async function startApp() {
     app.setAppUserModelId("cn.codex.quota.widget");
   }
 
-  quotaStore = new QuotaStore({ userDataPath: app.getPath("userData") });
+  signalSettings = await loadSignalSettings();
+  quotaStore = new QuotaStore({
+    userDataPath: app.getPath("userData"),
+    visibleRefreshIntervalMs: signalSettings.quotaRefreshMs
+  });
   await quotaStore.loadCache();
   quotaStore.on("state", (state) => sendToWindow("quota:changed", state));
 
@@ -128,6 +141,7 @@ function createWindow() {
     window.webContents.send("window:compactChanged", isCompactMode);
     window.webContents.send("window:compactScaleChanged", compactScale);
     window.webContents.send("window:compactDisplayModeChanged", compactDisplayMode());
+    window.webContents.send("signal:settingsChanged", signalSettings);
   });
 
   window.once("ready-to-show", () => {
@@ -221,11 +235,54 @@ function createTray() {
   tray.on("click", toggleWindow);
 }
 
+function openSignalSettingsWindow() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.show();
+    settingsWindow.focus();
+    return settingsWindow;
+  }
+
+  const parent = getLiveWindow();
+  settingsWindow = new BrowserWindow({
+    width: 360,
+    height: 344,
+    parent: parent || undefined,
+    modal: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    skipTaskbar: true,
+    autoHideMenuBar: true,
+    show: false,
+    title: "灯效设置",
+    backgroundColor: "#111418",
+    icon: APP_ICON_PATH,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  settingsWindow.webContents.on("did-finish-load", () => {
+    sendToSettingsWindow("signal:settingsChanged", signalSettings);
+  });
+  settingsWindow.once("ready-to-show", () => {
+    if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.show();
+  });
+  settingsWindow.on("closed", () => {
+    settingsWindow = null;
+  });
+  settingsWindow.loadFile(path.join(__dirname, "../settings/index.html"));
+  return settingsWindow;
+}
+
 function rebuildTrayMenu() {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: "显示/隐藏", click: toggleWindow },
       { label: "刷新额度", click: () => quotaStore.refreshNow("tray-manual").catch(() => {}) },
+      { label: "灯效设置...", click: openSignalSettingsWindow },
       {
         label: isCompactMode ? "展开窗口" : "紧凑窗口",
         click: () => setCompactMode(!isCompactMode)
@@ -260,6 +317,64 @@ function registerIpcHandlers() {
   ipcMain.handle("window:compactDisplayMode:get", () => compactDisplayMode());
   ipcMain.handle("window:compactMousePassthrough:set", (_event, value) => setCompactMousePassthrough(value));
   ipcMain.handle("window:cursorState:get", () => getCursorState());
+  ipcMain.handle("signal:settings:get", () => signalSettings);
+  ipcMain.handle("signal:settings:set", (_event, settings) => setSignalSettings(settings));
+  ipcMain.handle("signal:settings:reset", () => setSignalSettings(DEFAULT_SIGNAL_SETTINGS));
+}
+
+async function loadSignalSettings() {
+  try {
+    const payload = JSON.parse(await fs.readFile(settingsPath(), "utf8"));
+    return normalizeSignalSettings(payload?.signal);
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      console.warn(`Failed to read widget settings: ${error.message}`);
+    }
+    return { ...DEFAULT_SIGNAL_SETTINGS };
+  }
+}
+
+function settingsPath() {
+  return path.join(app.getPath("userData"), SETTINGS_FILE_NAME);
+}
+
+async function setSignalSettings(settings) {
+  signalSettings = normalizeSignalSettings(settings);
+  quotaStore?.setVisibleRefreshIntervalMs(signalSettings.quotaRefreshMs);
+  await saveSignalSettings();
+  sendToWindow("signal:settingsChanged", signalSettings);
+  sendToSettingsWindow("signal:settingsChanged", signalSettings);
+  return signalSettings;
+}
+
+function normalizeSignalSettings(settings) {
+  return {
+    recentFastBreathMs: clampSignalMs(settings?.recentFastBreathMs, DEFAULT_SIGNAL_SETTINGS.recentFastBreathMs),
+    criticalBlinkMs: clampSignalMs(settings?.criticalBlinkMs, DEFAULT_SIGNAL_SETTINGS.criticalBlinkMs),
+    quotaRefreshMs: clampQuotaRefreshMs(settings?.quotaRefreshMs, DEFAULT_SIGNAL_SETTINGS.quotaRefreshMs)
+  };
+}
+
+function clampSignalMs(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(20000, Math.max(1000, Math.round(number)));
+}
+
+function clampQuotaRefreshMs(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(30 * 60 * 1000, Math.max(60 * 1000, Math.round(number)));
+}
+
+async function saveSignalSettings() {
+  const filePath = settingsPath();
+  const payload = {
+    version: 1,
+    signal: signalSettings
+  };
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
 function setAlwaysOnTop(value) {
@@ -480,6 +595,11 @@ function sendToWindow(channel, ...args) {
   const window = getLiveWindow();
   if (!window || window.webContents.isDestroyed()) return;
   window.webContents.send(channel, ...args);
+}
+
+function sendToSettingsWindow(channel, ...args) {
+  if (!settingsWindow || settingsWindow.isDestroyed() || settingsWindow.webContents.isDestroyed()) return;
+  settingsWindow.webContents.send(channel, ...args);
 }
 
 app.on("before-quit", () => {

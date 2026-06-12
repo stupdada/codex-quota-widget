@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld("codexQuota", {
   getCompactDisplayMode: () => ipcRenderer.invoke("window:compactDisplayMode:get"),
   setCompactMousePassthrough: (value) => ipcRenderer.invoke("window:compactMousePassthrough:set", value),
   getCursorState: () => ipcRenderer.invoke("window:cursorState:get"),
+  getSignalSettings: () => ipcRenderer.invoke("signal:settings:get"),
+  setSignalSettings: (settings) => ipcRenderer.invoke("signal:settings:set", settings),
+  resetSignalSettings: () => ipcRenderer.invoke("signal:settings:reset"),
   onQuotaChanged: (callback) => {
     ipcRenderer.on("quota:changed", (_event, value) => callback(value));
   },
@@ -31,5 +34,8 @@ contextBridge.exposeInMainWorld("codexQuota", {
   },
   onCompactDisplayModeChanged: (callback) => {
     ipcRenderer.on("window:compactDisplayModeChanged", (_event, value) => callback(value));
+  },
+  onSignalSettingsChanged: (callback) => {
+    ipcRenderer.on("signal:settingsChanged", (_event, value) => callback(value));
   }
 });

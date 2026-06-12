@@ -4,7 +4,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { QuotaStore } = require("../src/main/quota-store");
 
-function quota(remainingPercent) {
+function quota(remainingPercent, fetchedAt = "2026-06-10T00:00:00.000Z") {
   return {
     limitId: "codex",
     limitName: "Codex",
@@ -26,7 +26,7 @@ function quota(remainingPercent) {
     remainingPercent,
     usedPercent: 100 - remainingPercent,
     resetsAt: "2026-06-10T05:00:00.000Z",
-    fetchedAt: "2026-06-10T00:00:00.000Z",
+    fetchedAt,
     paceAdvice: {
       longWindow: null,
       shortWindow: null,
@@ -125,11 +125,53 @@ async function verifyFailurePreservesQuota() {
   });
 }
 
+async function verifyHistoryBackedVelocityAdvice() {
+  await withTempDir(async (dir) => {
+    const samples = [quota(70, "2026-06-10T00:00:00.000Z"), quota(64, "2026-06-10T06:00:00.000Z")];
+    const store = new QuotaStore({
+      userDataPath: dir,
+      readQuota: async () => samples.shift(),
+      autoSchedule: false
+    });
+
+    const first = await store.refreshNow("first");
+    assert.equal(first.quota.paceAdvice.longWindow.velocity.source, "ideal");
+    assert.equal(first.quota.paceAdvice.longWindow.velocity.sampleWindowMins, 0);
+
+    const second = await store.refreshNow("second");
+    assert.equal(second.quota.paceAdvice.longWindow.velocity.sampleWindowMins, 360);
+    assert.equal(second.quota.paceAdvice.longWindow.velocity.burnRatePercentPerHour, 1);
+    assert.equal(second.quota.paceAdvice.longWindow.velocity.recentRequiredRemainingPercent, 100);
+    assert.ok(second.quota.paceAdvice.longWindow.velocity.requiredRemainingPercent < 100);
+    assert.ok(second.quota.paceAdvice.longWindow.velocity.requiredRemainingPercent > 96);
+    await fs.access(path.join(dir, "quota-history.json"));
+    store.destroy();
+  });
+}
+
+async function verifyVisibleRefreshIntervalCanChange() {
+  await withTempDir(async (dir) => {
+    const store = new QuotaStore({
+      userDataPath: dir,
+      readQuota: async () => quota(80),
+      visibleRefreshIntervalMs: 10_000,
+      autoSchedule: false
+    });
+
+    store.setVisibleRefreshIntervalMs(60_000);
+    assert.equal(store.visibleRefreshIntervalMs, 60_000);
+    assert.throws(() => store.setVisibleRefreshIntervalMs(0), /positive number/);
+    store.destroy();
+  });
+}
+
 (async () => {
   await verifyCacheLoad();
   await verifyRefreshCoalescing();
   await verifyFailurePreservesQuota();
-  console.log("Verified quota store cache, refresh coalescing, and stale-data error handling.");
+  await verifyHistoryBackedVelocityAdvice();
+  await verifyVisibleRefreshIntervalCanChange();
+  console.log("Verified quota store cache, refresh coalescing, stale-data errors, history-backed velocity advice, and refresh interval settings.");
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

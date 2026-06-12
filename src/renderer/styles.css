@@ -11,6 +11,8 @@
   --compact-detail-font-size: 11px;
   --compact-detail-label-font-size: 12px;
   --compact-detail-line-height: 14px;
+  --signal-recent-fast-cycle: 4000ms;
+  --signal-critical-cycle: 3000ms;
   font-family:
     "Segoe UI",
     "Microsoft YaHei",
@@ -402,6 +404,10 @@ body[data-state="danger"] .liquid-fill {
   background: #ffd166;
 }
 
+.pace-badge.normal {
+  background: #5aa7ff;
+}
+
 .pace-badge.urgent {
   background: #ffffff;
 }
@@ -436,7 +442,7 @@ body[data-state="danger"] .liquid-fill {
 
 .pace-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-top: 9px;
 }
@@ -615,19 +621,57 @@ body[data-state="danger"] .liquid-fill {
   box-shadow: 0 0 6px rgba(90, 167, 255, 0.46);
 }
 
-.compact-pace-signal.slow {
+.compact-pace-signal.recentFast {
   background: #ffd166;
   box-shadow: 0 0 7px rgba(255, 209, 102, 0.54);
+  animation: signal-breathe var(--signal-recent-fast-cycle) ease-in-out infinite;
+}
+
+.compact-pace-signal.coolingDown {
+  background: #ffd166;
+  box-shadow: 0 0 6px rgba(255, 209, 102, 0.42);
+}
+
+.compact-pace-signal.slow {
+  background: #ff6b6b;
+  box-shadow: 0 0 8px rgba(255, 107, 107, 0.58);
 }
 
 .compact-pace-signal.critical {
   background: #ff6b6b;
   box-shadow: 0 0 8px rgba(255, 107, 107, 0.64);
+  animation: signal-blink var(--signal-critical-cycle) steps(1, end) infinite;
 }
 
 .compact-pace-signal.unknown {
   background: #87908b;
   box-shadow: 0 0 4px rgba(135, 144, 139, 0.32);
+}
+
+@keyframes signal-breathe {
+  0%,
+  100% {
+    opacity: 0.58;
+    box-shadow: 0 0 4px rgba(255, 209, 102, 0.28);
+  }
+
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 13px rgba(255, 209, 102, 0.78);
+  }
+}
+
+@keyframes signal-blink {
+  0%,
+  62%,
+  100% {
+    opacity: 1;
+  }
+
+  63%,
+  82% {
+    opacity: 0.18;
+  }
 }
 
 .compact-metric,
@@ -681,6 +725,7 @@ body[data-state="danger"] .liquid-fill {
 
 .compact-delta {
   overflow: hidden;
+  margin-left: 3px;
   font-size: 19px;
   font-weight: 850;
   line-height: 1;
@@ -742,35 +787,45 @@ body[data-state="danger"] .liquid-fill {
 
 .compact-track-fill[hidden],
 .compact-ideal-marker[hidden],
-.compact-ideal-text[hidden] {
+.compact-velocity-marker[hidden],
+.compact-ideal-text[hidden],
+.compact-velocity-text[hidden] {
   display: none;
 }
 
-.compact-ideal-marker {
+.compact-ideal-marker,
+.compact-velocity-marker {
   position: absolute;
   top: -5px;
   left: 0%;
-  z-index: 5;
-  width: 2px;
   height: 19px;
   border-radius: 999px;
-  background: #ffffff;
-  box-shadow: none;
   transform: translateX(-1px);
   transition: left 460ms ease;
 }
 
-.compact-ideal-text {
+.compact-ideal-marker {
+  z-index: 6;
+  width: 2px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.compact-velocity-marker {
+  z-index: 5;
+  width: 2px;
+  background: #37d9ff;
+  box-shadow: 0 0 8px rgba(55, 217, 255, 0.46);
+}
+
+.compact-ideal-text,
+.compact-velocity-text {
   position: absolute;
-  top: -18px;
   left: 0%;
   z-index: 6;
   display: block;
   padding: 1px 5px 2px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 999px;
-  color: rgba(24, 28, 36, 0.92);
-  background: rgba(255, 255, 255, 0.82);
   font-size: var(--compact-ideal-font-size);
   font-variant-numeric: tabular-nums;
   font-weight: 850;
@@ -784,6 +839,20 @@ body[data-state="danger"] .liquid-fill {
     opacity 150ms ease,
     transform 150ms ease;
   white-space: nowrap;
+}
+
+.compact-ideal-text {
+  top: -18px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  color: rgba(24, 28, 36, 0.92);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.compact-velocity-text {
+  top: -18px;
+  border: 1px solid rgba(55, 217, 255, 0.7);
+  color: rgba(222, 250, 255, 0.98);
+  background: rgba(9, 42, 52, 0.78);
 }
 
 .compact-divider {
@@ -1046,11 +1115,13 @@ body[data-compact-theme="island"] .compact-hud::after {
 body[data-compact-expanded="true"] .compact-controls,
 body[data-compact-expanded="true"] .compact-advice,
 body[data-compact-expanded="true"] .compact-ideal-text,
+body[data-compact-expanded="true"] .compact-velocity-text,
 body[data-compact-expanded="true"] .compact-reset-info,
 body[data-compact-expanded="true"] .compact-resize-handle,
 .is-resizing .compact-controls,
 .is-resizing .compact-advice,
 .is-resizing .compact-ideal-text,
+.is-resizing .compact-velocity-text,
 .is-resizing .compact-reset-info,
 .is-resizing .compact-resize-handle {
   opacity: 1;
@@ -1058,7 +1129,13 @@ body[data-compact-expanded="true"] .compact-resize-handle,
 }
 
 body[data-compact-expanded="true"] .compact-ideal-text,
+body[data-compact-expanded="true"] .compact-velocity-text,
 .is-resizing .compact-ideal-text {
+  pointer-events: none;
+  transform: translate(-50%, -3px);
+}
+
+.is-resizing .compact-velocity-text {
   pointer-events: none;
   transform: translate(-50%, -3px);
 }
@@ -1120,19 +1197,38 @@ body[data-compact-display="topStrip"] .compact-track-fill {
   background: linear-gradient(90deg, var(--metric-accent), var(--metric-accent-strong));
 }
 
-body[data-compact-display="topStrip"] .compact-ideal-marker {
+body[data-compact-display="topStrip"] .compact-ideal-marker,
+body[data-compact-display="topStrip"] .compact-velocity-marker {
   top: -4px;
   height: 16px;
+}
+
+body[data-compact-display="topStrip"] .compact-ideal-marker {
   background: rgba(255, 255, 255, 0.92);
 }
 
-body[data-compact-display="topStrip"] .compact-ideal-text {
+body[data-compact-display="topStrip"] .compact-velocity-marker {
+  background: rgba(55, 217, 255, 0.95);
+}
+
+body[data-compact-display="topStrip"] .compact-ideal-text,
+body[data-compact-display="topStrip"] .compact-velocity-text {
   top: -23px;
   padding: 2px 7px 3px;
+  font-size: 14px;
+}
+
+body[data-compact-display="topStrip"] .compact-ideal-text {
   border-color: rgba(255, 255, 255, 0.42);
   color: rgba(255, 255, 255, 0.92);
   background: rgba(255, 255, 255, 0.12);
-  font-size: 22px;
+}
+
+body[data-compact-display="topStrip"] .compact-velocity-text {
+  top: -23px;
+  border-color: rgba(55, 217, 255, 0.54);
+  color: rgba(222, 250, 255, 0.96);
+  background: rgba(55, 217, 255, 0.14);
 }
 
 body[data-compact-display="topStrip"][data-compact-expanded="true"] .compact-hud,
@@ -1213,12 +1309,15 @@ body[data-compact-display="topStrip"].is-moving .compact-track {
 }
 
 body[data-compact-display="topStrip"][data-compact-expanded="true"] .compact-ideal-marker,
-body[data-compact-display="topStrip"].is-moving .compact-ideal-marker {
+body[data-compact-display="topStrip"][data-compact-expanded="true"] .compact-velocity-marker,
+body[data-compact-display="topStrip"].is-moving .compact-ideal-marker,
+body[data-compact-display="topStrip"].is-moving .compact-velocity-marker {
   top: -6px;
   height: 24px;
 }
 
-body[data-compact-display="topStrip"].is-moving .compact-ideal-text {
+body[data-compact-display="topStrip"].is-moving .compact-ideal-text,
+body[data-compact-display="topStrip"].is-moving .compact-velocity-text {
   opacity: 1;
   pointer-events: none;
   transform: translate(-50%, -3px);

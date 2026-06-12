@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>灯效设置</title>
+    <link rel="stylesheet" href="./settings.css" />
+  </head>
+  <body>
+    <main class="settings-shell">
+      <header>
+        <h1>灯效设置</h1>
+        <p id="statusText">灯效单位：秒，刷新单位：分钟</p>
+      </header>
+
+      <section class="field">
+        <label for="recentFastInput">近期偏快呼吸</label>
+        <div class="control-row">
+          <input id="recentFastRange" type="range" min="1" max="20" step="0.5" />
+          <input id="recentFastInput" type="number" min="1" max="20" step="0.5" />
+        </div>
+      </section>
+
+      <section class="field">
+        <label for="criticalInput">接近耗尽闪烁</label>
+        <div class="control-row">
+          <input id="criticalRange" type="range" min="1" max="20" step="0.5" />
+          <input id="criticalInput" type="number" min="1" max="20" step="0.5" />
+        </div>
+      </section>
+
+      <section class="field">
+        <label for="quotaRefreshInput">额度刷新间隔</label>
+        <div class="control-row">
+          <input id="quotaRefreshRange" type="range" min="1" max="30" step="1" />
+          <input id="quotaRefreshInput" type="number" min="1" max="30" step="1" />
+        </div>
+      </section>
+
+      <footer>
+        <button id="resetBtn" type="button" class="secondary">恢复默认</button>
+        <button id="saveBtn" type="button">保存</button>
+      </footer>
+    </main>
+    <script src="./settings.js"></script>
+  </body>
+</html>

@@ -25,6 +25,22 @@ function makeSnapshot(weeklyRemainingPercent, weeklyRemainingTimePercent = 50, s
   };
 }
 
+function historySample(snapshot, hoursAgo, weeklyRemainingPercent, shortRemainingPercent = snapshot.primary.remainingPercent) {
+  return {
+    fetchedAt: new Date(now.getTime() - hoursAgo * 60 * 60 * 1000).toISOString(),
+    primary: {
+      remainingPercent: shortRemainingPercent,
+      windowDurationMins: snapshot.primary.windowDurationMins,
+      resetsAt: snapshot.primary.resetsAt
+    },
+    secondary: {
+      remainingPercent: weeklyRemainingPercent,
+      windowDurationMins: snapshot.secondary.windowDurationMins,
+      resetsAt: snapshot.secondary.resetsAt
+    }
+  };
+}
+
 const cases = [
   {
     name: "7d time 50%, quota 80% and 5h normal => urgent overall",
@@ -42,7 +58,10 @@ const cases = [
   {
     name: "7d time 50%, quota 20% => slow",
     snapshot: makeSnapshot(20),
-    expected: "slow"
+    expected: "slow",
+    expectedOverall: "slow",
+    expectedOverallReason: "bothReferencesBehind",
+    expectedOverallSource: "combined"
   },
   {
     name: "7d quota 5% => critical",
@@ -62,7 +81,10 @@ const cases = [
   {
     name: "7d delta -15 boundary => slow",
     snapshot: makeSnapshot(35),
-    expected: "slow"
+    expected: "slow",
+    expectedOverall: "slow",
+    expectedOverallReason: "bothReferencesBehind",
+    expectedOverallSource: "combined"
   },
   {
     name: "5h conflict stays auxiliary when 7d is normal",
@@ -71,11 +93,11 @@ const cases = [
     expectedShort: "accelerate"
   },
   {
-    name: "7d ahead but 5h behind => slow overall",
+    name: "7d ahead but 5h behind => recent fast overall",
     snapshot: makeSnapshot(80, 50, 20),
     expected: "accelerate",
     expectedShort: "slow",
-    expectedOverall: "slow",
+    expectedOverall: "recentFast",
     expectedOverallReason: "shortWindowTight",
     expectedOverallSource: "short"
   },
@@ -107,12 +129,30 @@ const cases = [
     expectedOverallSource: "combined"
   },
   {
-    name: "7d urgent delta but 5h behind => slow overall",
+    name: "7d urgent delta but 5h behind => recent fast overall",
     snapshot: makeSnapshot(90, 50, 20),
     expected: "accelerate",
     expectedShort: "slow",
-    expectedOverall: "slow",
+    expectedOverall: "recentFast",
     expectedOverallReason: "shortWindowTight",
+    expectedOverallSource: "short"
+  },
+  {
+    name: "7d behind and 5h behind => slow overall",
+    snapshot: makeSnapshot(20, 50, 20),
+    expected: "slow",
+    expectedShort: "slow",
+    expectedOverall: "slow",
+    expectedOverallReason: "bothWindowsBehind",
+    expectedOverallSource: "combined"
+  },
+  {
+    name: "7d normal but 5h critical => critical overall",
+    snapshot: makeSnapshot(50, 50, 5),
+    expected: "normal",
+    expectedShort: "critical",
+    expectedOverall: "critical",
+    expectedOverallReason: "shortWindowCritical",
     expectedOverallSource: "short"
   },
   {
@@ -139,6 +179,14 @@ const cases = [
     expectedOverall: "urgent",
     expectedOverallReason: "urgentAhead",
     expectedOverallSource: "combined"
+  },
+  {
+    name: "critical 7d still reports positive delta when ideal reaches zero",
+    snapshot: makeSnapshot(5, 0, 50),
+    expected: "critical",
+    expectedOverall: "critical",
+    expectedLongIdeal: 0,
+    expectedLongDelta: 5
   }
 ];
 
@@ -146,6 +194,12 @@ for (const testCase of cases) {
   const advice = buildPaceAdvice(testCase.snapshot, now);
   assert.equal(advice.longWindow.status, testCase.expected, testCase.name);
   assert.equal(advice.overall.status, testCase.expectedOverall ?? testCase.expected, `${testCase.name} overall`);
+  if (testCase.expectedLongIdeal !== undefined) {
+    assert.equal(advice.longWindow.idealRemainingPercent, testCase.expectedLongIdeal, `${testCase.name} ideal`);
+  }
+  if (testCase.expectedLongDelta !== undefined) {
+    assert.equal(advice.longWindow.paceDelta, testCase.expectedLongDelta, `${testCase.name} delta`);
+  }
   if (testCase.expectedShort) {
     assert.equal(advice.shortWindow.status, testCase.expectedShort, `${testCase.name} short`);
   }
@@ -162,6 +216,94 @@ assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: 50 }), 30, "urgen
 assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: 20 }), 15, "urgent threshold near reset");
 assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: 0 }), 8, "urgent threshold clamps low");
 assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: null }), null, "urgent threshold requires time left");
+
+{
+  const snapshot = makeSnapshot(50, 10, 50);
+  const advice = buildPaceAdvice(snapshot, now, [historySample(snapshot, 6, 100)]);
+  assert.equal(advice.longWindow.velocity.recentRequiredRemainingPercent, 100, "raw recent dynamic required clamps high");
+  assert.ok(
+    advice.longWindow.velocity.requiredRemainingPercent > 60 && advice.longWindow.velocity.requiredRemainingPercent < 100,
+    "low-confidence 7d dynamic line blends high recent burn with ideal pace"
+  );
+  assert.equal(advice.longWindow.velocity.sampleWindowMins, 360, "dynamic sample window is reported");
+  assert.equal(advice.overall.status, "recentFast", "dynamic pressure overrides surplus ideal pace");
+  assert.equal(advice.overall.reasonCode, "dynamicPaceTight", "dynamic pressure reason is explicit");
+}
+
+{
+  const snapshot = makeSnapshot(20, 50, 50);
+  const advice = buildPaceAdvice(snapshot, now, [historySample(snapshot, 6, 20)]);
+  assert.equal(advice.longWindow.velocity.recentRequiredRemainingPercent, 0, "no recent burn creates a zero raw recent line");
+  assert.equal(advice.overall.status, "coolingDown", "behind ideal but safe recent speed means keep slowing");
+}
+
+{
+  const snapshot = makeSnapshot(20, 50, 50);
+  const advice = buildPaceAdvice(snapshot, now, [historySample(snapshot, 6, 100)]);
+  assert.equal(advice.overall.status, "slow", "behind both ideal and dynamic references means slow down");
+  assert.equal(advice.overall.reasonCode, "bothReferencesBehind", "both-reference reason is explicit");
+}
+
+{
+  const snapshot = makeSnapshot(60, 50, 50);
+  const advice = buildPaceAdvice(snapshot, now, [historySample(snapshot, 0.05, 80)]);
+  assert.equal(advice.longWindow.velocity.sampleWindowMins, 0, "too-short recent history does not become recent speed");
+  assert.equal(advice.longWindow.velocity.recentConfidence, 0, "too-short recent history has zero recent confidence");
+  assert.equal(advice.overall.status, "normal", "insufficient recent sample stays close to ideal pace");
+}
+
+{
+  const snapshot = makeSnapshot(98, 98, 50);
+  const advice = buildPaceAdvice(snapshot, now, [historySample(snapshot, 0.6, 99)]);
+  assert.equal(advice.longWindow.velocity.recentRequiredRemainingPercent, 100, "raw short 7d sample can still project high");
+  assert.ok(advice.longWindow.velocity.requiredRemainingPercent < 99, "low-confidence 7d sample is damped near ideal");
+  assert.equal(advice.overall.status, "normal", "tiny early 7d burn does not become a false slowdown");
+}
+
+{
+  const snapshot = makeSnapshot(80, 50, 55);
+  const advice = buildPaceAdvice(snapshot, now, [historySample(snapshot, 0.5, 80, 100)]);
+  assert.equal(advice.shortWindow.velocity.recentRequiredRemainingPercent, 100, "5h fast burn stays sensitive");
+  assert.equal(advice.overall.status, "recentFast", "5h pressure still drives recent-fast advice");
+  assert.equal(advice.overall.reasonCode, "shortWindowTight", "5h pressure source remains explicit");
+}
+
+{
+  const snapshot = makeSnapshot(80, 50, 80);
+  const oldReset = "2026-06-03T00:00:00.000Z";
+  const history = [
+    {
+      fetchedAt: "2026-06-02T00:00:00.000Z",
+      primary: {
+        remainingPercent: 100,
+        windowDurationMins: snapshot.primary.windowDurationMins,
+        resetsAt: "2026-06-02T05:00:00.000Z"
+      },
+      secondary: {
+        remainingPercent: 100,
+        windowDurationMins: snapshot.secondary.windowDurationMins,
+        resetsAt: oldReset
+      }
+    },
+    {
+      fetchedAt: "2026-06-02T06:00:00.000Z",
+      primary: {
+        remainingPercent: 100,
+        windowDurationMins: snapshot.primary.windowDurationMins,
+        resetsAt: "2026-06-02T05:00:00.000Z"
+      },
+      secondary: {
+        remainingPercent: 70,
+        windowDurationMins: snapshot.secondary.windowDurationMins,
+        resetsAt: oldReset
+      }
+    }
+  ];
+  const advice = buildPaceAdvice(snapshot, now, history);
+  assert.equal(advice.longWindow.velocity.recentRequiredRemainingPercent, null, "cross-reset history is not direct recent speed");
+  assert.ok(advice.longWindow.velocity.learnedRequiredRemainingPercent > 50, "cross-reset behavior feeds learned profile");
+  assert.equal(advice.longWindow.velocity.source, "learned", "learned profile can drive early-cycle dynamic line");
+}
 
 const normalized = normalizeSnapshot({
   limitId: "codex",
@@ -190,4 +332,4 @@ assert.throws(
   "rejects invalid reset timestamps"
 );
 
-console.log(`Verified ${cases.length} pace advice cases and 5 quota normalization checks.`);
+console.log(`Verified ${cases.length} pace advice cases, 7 dynamic pace checks, and 5 quota normalization checks.`);

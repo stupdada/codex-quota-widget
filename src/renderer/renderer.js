@@ -7,6 +7,10 @@ const state = {
   compactExpanded: false,
   compactScale: 0.46,
   compactTheme: "glass",
+  signalSettings: {
+    recentFastBreathMs: 4000,
+    criticalBlinkMs: 3000
+  },
   resizing: null,
   moving: null,
   resizeFrame: null,
@@ -63,8 +67,12 @@ const els = {
   compactShortFill: requiredElement("compactShortFill"),
   compactWeeklyIdeal: requiredElement("compactWeeklyIdeal"),
   compactShortIdeal: requiredElement("compactShortIdeal"),
+  compactWeeklyVelocity: requiredElement("compactWeeklyVelocity"),
+  compactShortVelocity: requiredElement("compactShortVelocity"),
   compactWeeklyIdealText: requiredElement("compactWeeklyIdealText"),
   compactShortIdealText: requiredElement("compactShortIdealText"),
+  compactWeeklyVelocityText: requiredElement("compactWeeklyVelocityText"),
+  compactShortVelocityText: requiredElement("compactShortVelocityText"),
   compactWeeklyText: requiredElement("compactWeeklyText"),
   compactShortText: requiredElement("compactShortText"),
   compactWeeklyDelta: requiredElement("compactWeeklyDelta"),
@@ -95,6 +103,8 @@ const els = {
   actualPaceText: requiredElement("actualPaceText"),
   idealPaceLabel: requiredElement("idealPaceLabel"),
   idealPaceText: requiredElement("idealPaceText"),
+  velocityPaceLabel: requiredElement("velocityPaceLabel"),
+  velocityPaceText: requiredElement("velocityPaceText"),
   deltaPaceLabel: requiredElement("deltaPaceLabel"),
   deltaPaceText: requiredElement("deltaPaceText"),
   statusDot: requiredElement("statusDot"),
@@ -130,13 +140,16 @@ const copy = {
     weeklyPace: "7天节奏",
     actualRemaining: "实际剩余",
     idealRemaining: "理想剩余",
+    velocityRemaining: "近速需留",
     paceDelta: "偏差",
     status: {
       urgent: "加速蹬！",
-      accelerate: "可加快使用",
-      normal: "正常",
+      accelerate: "余量充足",
+      normal: "节奏正常",
+      recentFast: "近期偏快",
+      coolingDown: "继续放缓",
       slow: "建议减速",
-      critical: "接近耗尽/暂停高消耗任务",
+      critical: "接近耗尽",
       unknown: "无法判断"
     },
     reasons: {
@@ -145,6 +158,12 @@ const copy = {
       behind: "7天窗口剩余额度低于当前时间进度",
       critical: "7天窗口剩余额度不高于 5%",
       urgentAhead: "7天窗口剩余额度明显高于理想剩余额度",
+      shortWindowTight: "5小时窗口近期速度偏快",
+      shortWindowCritical: "5小时窗口剩余额度紧张",
+      recentPaceRecovered: "5小时窗口近期速度已经回到合理范围",
+      bothWindowsBehind: "7天窗口和5小时窗口都低于当前时间进度",
+      dynamicPaceTight: "按近期速度继续使用会提前耗尽",
+      bothReferencesBehind: "实际剩余同时低于理想线和近速需留线",
       insufficientData: "7天窗口缺少 reset 时间或窗口时长",
       missingLongWindow: "没有可用于主判断的 7天窗口数据"
     },
@@ -179,13 +198,16 @@ const copy = {
     weeklyPace: "7-day pace",
     actualRemaining: "Actual",
     idealRemaining: "Ideal",
+    velocityRemaining: "Recent",
     paceDelta: "Delta",
     status: {
       urgent: "Use soon",
-      accelerate: "Speed up",
-      normal: "Normal",
+      accelerate: "Enough left",
+      normal: "On track",
+      recentFast: "Recent fast",
+      coolingDown: "Cooling",
       slow: "Slow down",
-      critical: "Nearly exhausted / pause heavy tasks",
+      critical: "Nearly exhausted",
       unknown: "Unknown"
     },
     reasons: {
@@ -194,6 +216,12 @@ const copy = {
       behind: "The 7-day quota is below the current time progress",
       critical: "The 7-day quota is at or below 5%",
       urgentAhead: "The 7-day quota is well above the ideal remaining quota",
+      shortWindowTight: "The 5-hour window is burning too fast",
+      shortWindowCritical: "The 5-hour window is tight",
+      recentPaceRecovered: "The 5-hour window has recovered to a reasonable pace",
+      bothWindowsBehind: "Both the 7-day and 5-hour windows are behind",
+      dynamicPaceTight: "The recent pace would run out before reset",
+      bothReferencesBehind: "The current quota is below both reference lines",
       insufficientData: "The 7-day reset time or window duration is missing",
       missingLongWindow: "No 7-day window data is available for the main decision"
     },
@@ -218,33 +246,40 @@ function setAttr(element, name, value) {
   element.setAttribute(name, value);
 }
 
+function finiteNumberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function percentText(value) {
-  return Number.isFinite(Number(value)) ? `${Math.round(Number(value))}%` : "--";
+  const number = finiteNumberOrNull(value);
+  return number === null ? "--" : `${Math.round(number)}%`;
 }
 
 function signedPercentText(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return "--";
+  const number = finiteNumberOrNull(value);
+  if (number === null) return "--";
   const rounded = Math.round(number);
   return `${rounded > 0 ? "+" : ""}${rounded}%`;
 }
 
 function signedDeltaText(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return "--";
+  const number = finiteNumberOrNull(value);
+  if (number === null) return "--";
   const rounded = Math.round(number);
   return `${rounded > 0 ? "+" : ""}${rounded}`;
 }
 
 function compactDeltaClass(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number) || Math.round(number) === 0) return "compact-delta neutral";
+  const number = finiteNumberOrNull(value);
+  if (number === null || Math.round(number) === 0) return "compact-delta neutral";
   return `compact-delta ${number > 0 ? "positive" : "negative"}`;
 }
 
 function clampPercentValue(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return null;
+  const number = finiteNumberOrNull(value);
+  if (number === null) return null;
   return Math.min(100, Math.max(0, number));
 }
 
@@ -284,8 +319,8 @@ function pad2(value) {
 }
 
 function statusClassFromRemaining(remainingPercent) {
-  const remaining = Number(remainingPercent);
-  if (!Number.isFinite(remaining)) return "loading";
+  const remaining = finiteNumberOrNull(remainingPercent);
+  if (remaining === null) return "loading";
   if (remaining <= 0) return "danger";
   if (remaining < 10) return "warning";
   return "good";
@@ -301,6 +336,7 @@ function renderStaticCopy() {
   setText(els.weeklyPaceLabel, t("weeklyPace"));
   setText(els.actualPaceLabel, t("actualRemaining"));
   setText(els.idealPaceLabel, t("idealRemaining"));
+  setText(els.velocityPaceLabel, t("velocityRemaining"));
   setText(els.deltaPaceLabel, t("paceDelta"));
   setText(els.langBtn, state.lang === "zh" ? "EN" : "中");
   renderCompactButton(state.compact);
@@ -352,6 +388,7 @@ function renderPaceAdvice(advice) {
   setText(els.paceBadge, t(`status.${overall.status}`));
   setText(els.actualPaceText, percentText(weekly?.remainingPercent));
   setText(els.idealPaceText, percentText(weekly?.idealRemainingPercent));
+  setText(els.velocityPaceText, percentText(weekly?.velocity?.requiredRemainingPercent));
   setText(els.deltaPaceText, signedPercentText(weekly?.paceDelta));
   els.paceBadge.className = `pace-badge ${overall.severity}`;
   renderCompactAdvice(advice);
@@ -369,20 +406,24 @@ function renderCompactAdvice(advice) {
 }
 
 function compactAdviceText(status) {
-  const statusKey = ["urgent", "accelerate", "normal", "slow", "critical", "unknown"].includes(status) ? status : "unknown";
+  const statusKey = knownPaceStatus(status) ? status : "unknown";
   const labels = {
     zh: {
-      urgent: { kicker: "加速", value: "蹬 ！" },
+      urgent: { kicker: "加速", value: "蹬！" },
       accelerate: { kicker: "余量", value: "充足" },
       normal: { kicker: "节奏", value: "正常" },
-      slow: { kicker: "节奏", value: "偏快" },
-      critical: { kicker: "额度", value: "紧张" },
+      recentFast: { kicker: "近期", value: "偏快" },
+      coolingDown: { kicker: "继续", value: "放缓" },
+      slow: { kicker: "建议", value: "减速" },
+      critical: { kicker: "接近", value: "耗尽" },
       unknown: { kicker: "状态", value: "未知" }
     },
     en: {
       urgent: { kicker: "Use", value: "Soon" },
       accelerate: { kicker: "Use", value: "Fast" },
       normal: { kicker: "Status", value: "OK" },
+      recentFast: { kicker: "Recent", value: "Fast" },
+      coolingDown: { kicker: "Keep", value: "Slow" },
       slow: { kicker: "Use", value: "Less" },
       critical: { kicker: "Risk", value: "Pause" },
       unknown: { kicker: "Status", value: "?" }
@@ -392,39 +433,127 @@ function compactAdviceText(status) {
 }
 
 function renderCompactPaceSignal(overall) {
-  const status = ["urgent", "accelerate", "normal", "slow", "critical", "unknown"].includes(overall?.status)
-    ? overall.status
-    : "unknown";
+  const status = knownPaceStatus(overall?.status) ? overall.status : "unknown";
   const label = t(`status.${status}`);
   els.compactPaceSignal.className = `compact-pace-signal ${status}`;
   setAttr(els.compactPaceSignal, "title", label);
   setAttr(els.compactPaceSignal, "aria-label", label);
 }
 
-function setCompactTrack(fillElement, idealElement, idealTextElement, actualValue, idealValue) {
+function knownPaceStatus(status) {
+  return ["urgent", "accelerate", "normal", "recentFast", "coolingDown", "slow", "critical", "unknown"].includes(status);
+}
+
+function renderSignalSettings(settings) {
+  state.signalSettings = normalizeSignalSettings(settings);
+  document.documentElement.style.setProperty("--signal-recent-fast-cycle", `${state.signalSettings.recentFastBreathMs}ms`);
+  document.documentElement.style.setProperty("--signal-critical-cycle", `${state.signalSettings.criticalBlinkMs}ms`);
+}
+
+function normalizeSignalSettings(settings) {
+  return {
+    recentFastBreathMs: clampSignalMs(settings?.recentFastBreathMs, 4000),
+    criticalBlinkMs: clampSignalMs(settings?.criticalBlinkMs, 3000)
+  };
+}
+
+function clampSignalMs(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(20000, Math.max(1000, Math.round(number)));
+}
+
+function setCompactTrack(
+  fillElement,
+  idealElement,
+  idealTextElement,
+  velocityElement,
+  velocityTextElement,
+  actualValue,
+  idealValue,
+  velocityValue
+) {
   const actual = clampPercentValue(actualValue);
   const ideal = clampPercentValue(idealValue);
+  const velocity = clampPercentValue(velocityValue);
+  const track = fillElement.parentElement;
 
   fillElement.style.width = actual === null ? "0%" : `${actual}%`;
   fillElement.hidden = actual === null;
 
   idealElement.hidden = ideal === null;
   idealTextElement.hidden = ideal === null;
+  velocityElement.hidden = velocity === null;
+  velocityTextElement.hidden = velocity === null;
+  track.dataset.referenceMode = "separate";
+
   if (ideal === null) {
     idealElement.style.left = "0%";
     idealTextElement.style.left = "0%";
     setText(idealTextElement, "--");
-    return;
+  } else {
+    const idealPosition = `${ideal}%`;
+    idealElement.style.left = markerPosition(ideal);
+    idealTextElement.style.left = `clamp(20px, ${idealPosition}, calc(100% - 20px))`;
+    setText(idealTextElement, compactReferenceText("ideal", ideal));
   }
 
-  const idealPosition = `${ideal}%`;
-  idealElement.style.left = idealPosition;
-  idealTextElement.style.left = `clamp(14px, ${idealPosition}, calc(100% - 14px))`;
-  setText(idealTextElement, percentText(ideal));
+  if (velocity === null) {
+    velocityElement.style.left = "0%";
+    velocityTextElement.style.left = "0%";
+    setText(velocityTextElement, "--");
+  } else {
+    const velocityPosition = `${velocity}%`;
+    velocityElement.style.left = markerPosition(velocity);
+    velocityTextElement.style.left = `clamp(20px, ${velocityPosition}, calc(100% - 20px))`;
+    setText(velocityTextElement, compactReferenceText("velocity", velocity));
+  }
+
+  resolveCompactReferenceOverlap(track, idealTextElement, velocityTextElement);
+  const title =
+    ideal !== null && velocity !== null
+      ? `${t("idealRemaining")} ${percentText(ideal)} / ${t("velocityRemaining")} ${percentText(velocity)}`
+      : ideal !== null
+        ? `${t("idealRemaining")} ${percentText(ideal)}`
+        : velocity !== null
+          ? `${t("velocityRemaining")} ${percentText(velocity)}`
+          : "";
+  setAttr(idealTextElement, "title", title);
+  setAttr(velocityTextElement, "title", title);
 }
 
-function renderCompactMetric({ fill, ideal, idealText, percentTextElement, deltaTextElement }, window) {
-  setCompactTrack(fill, ideal, idealText, window?.remainingPercent, window?.idealRemainingPercent);
+function compactReferenceText(type, value) {
+  return percentText(value);
+}
+
+function markerPosition(value) {
+  return `clamp(2px, ${value}%, calc(100% - 2px))`;
+}
+
+function resolveCompactReferenceOverlap(track, idealTextElement, velocityTextElement) {
+  idealTextElement.classList.remove("merged");
+  if (idealTextElement.hidden || velocityTextElement.hidden) return;
+
+  const idealRect = idealTextElement.getBoundingClientRect();
+  const velocityRect = velocityTextElement.getBoundingClientRect();
+  const overlaps = idealRect.left <= velocityRect.right && velocityRect.left <= idealRect.right;
+  if (!overlaps) return;
+
+  velocityTextElement.hidden = true;
+  track.dataset.referenceMode = "idealOnly";
+}
+
+function renderCompactMetric({ fill, ideal, idealText, velocity, velocityText, percentTextElement, deltaTextElement }, window) {
+  setCompactTrack(
+    fill,
+    ideal,
+    idealText,
+    velocity,
+    velocityText,
+    window?.remainingPercent,
+    window?.idealRemainingPercent,
+    window?.velocity?.requiredRemainingPercent
+  );
   setText(percentTextElement, percentText(window?.remainingPercent));
   setText(deltaTextElement, signedDeltaText(window?.paceDelta));
   deltaTextElement.className = compactDeltaClass(window?.paceDelta);
@@ -439,6 +568,8 @@ function renderCompactHud(quota) {
       fill: els.compactWeeklyFill,
       ideal: els.compactWeeklyIdeal,
       idealText: els.compactWeeklyIdealText,
+      velocity: els.compactWeeklyVelocity,
+      velocityText: els.compactWeeklyVelocityText,
       percentTextElement: els.compactWeeklyText,
       deltaTextElement: els.compactWeeklyDelta
     },
@@ -449,6 +580,8 @@ function renderCompactHud(quota) {
       fill: els.compactShortFill,
       ideal: els.compactShortIdeal,
       idealText: els.compactShortIdealText,
+      velocity: els.compactShortVelocity,
+      velocityText: els.compactShortVelocityText,
       percentTextElement: els.compactShortText,
       deltaTextElement: els.compactShortDelta
     },
@@ -964,6 +1097,7 @@ els.pinBtn.addEventListener("click", async () => {
 });
 
 renderCompactTheme(loadCompactTheme(), { persist: false });
+renderSignalSettings(state.signalSettings);
 
 window.codexQuota.onQuotaChanged(renderQuotaState);
 window.codexQuota.onAlwaysOnTopChanged(renderPin);
@@ -973,10 +1107,12 @@ window.codexQuota.onCompactScaleChanged((value) => {
   renderCompactScale(value);
 });
 window.codexQuota.onCompactDisplayModeChanged(renderCompactDisplayMode);
+window.codexQuota.onSignalSettingsChanged(renderSignalSettings);
 
 renderLoading();
 syncAlwaysOnTop();
 syncCompactMode();
 syncCompactDisplayMode();
 syncCompactScale();
+window.codexQuota.getSignalSettings().then(renderSignalSettings).catch(reportInteractionError);
 window.codexQuota.getQuotaState().then(renderQuotaState).catch(renderError);
