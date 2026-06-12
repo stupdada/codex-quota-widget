@@ -140,10 +140,17 @@ async function verifyHistoryBackedVelocityAdvice() {
 
     const second = await store.refreshNow("second");
     assert.equal(second.quota.paceAdvice.longWindow.velocity.sampleWindowMins, 360);
-    assert.equal(second.quota.paceAdvice.longWindow.velocity.burnRatePercentPerHour, 1);
-    assert.equal(second.quota.paceAdvice.longWindow.velocity.recentRequiredRemainingPercent, 100);
-    assert.ok(second.quota.paceAdvice.longWindow.velocity.requiredRemainingPercent < 100);
-    assert.ok(second.quota.paceAdvice.longWindow.velocity.requiredRemainingPercent > 96);
+    assert.equal(second.quota.paceAdvice.longWindow.velocity.burnRatePercentPerHour, 0.2);
+    assert.equal(second.quota.paceAdvice.longWindow.velocity.rawBurnedPercent, 6);
+    assert.equal(second.quota.paceAdvice.longWindow.velocity.auxiliaryBurnedPercent, 6);
+    assert.equal(second.quota.paceAdvice.longWindow.velocity.smoothedBurnedPercent, 1.1);
+    assert.equal(second.quota.paceAdvice.longWindow.velocity.adjustedBurnedPercent, 1.1);
+    assert.equal(second.quota.paceAdvice.longWindow.velocity.shortToLongUsageRatio, 0.18);
+    assert.equal(second.quota.paceAdvice.longWindow.velocity.shortToLongUsageRatioConfidence, 0.08);
+    assert.equal(second.quota.paceAdvice.longWindow.velocity.observedShortToLongUsageRatio, 0.25);
+    assert.equal(second.quota.paceAdvice.longWindow.velocity.recentRequiredRemainingPercent, 28.6);
+    assert.ok(second.quota.paceAdvice.longWindow.velocity.requiredRemainingPercent < 70);
+    assert.ok(second.quota.paceAdvice.longWindow.velocity.requiredRemainingPercent > 50);
     await fs.access(path.join(dir, "quota-history.json"));
     store.destroy();
   });

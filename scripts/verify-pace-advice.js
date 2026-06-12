@@ -218,9 +218,9 @@ assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: 0 }), 8, "urgent 
 assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: null }), null, "urgent threshold requires time left");
 
 {
-  const snapshot = makeSnapshot(50, 10, 50);
-  const advice = buildPaceAdvice(snapshot, now, [historySample(snapshot, 6, 100)]);
-  assert.equal(advice.longWindow.velocity.recentRequiredRemainingPercent, 100, "raw recent dynamic required clamps high");
+  const snapshot = makeSnapshot(50, 50, 50);
+  const advice = buildPaceAdvice(snapshot, now, [historySample(snapshot, 6, 100, 100)]);
+  assert.equal(advice.longWindow.velocity.recentRequiredRemainingPercent, 100, "5h-supported dynamic required clamps high");
   assert.ok(
     advice.longWindow.velocity.requiredRemainingPercent > 60 && advice.longWindow.velocity.requiredRemainingPercent < 100,
     "low-confidence 7d dynamic line blends high recent burn with ideal pace"
@@ -239,7 +239,7 @@ assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: null }), null, "u
 
 {
   const snapshot = makeSnapshot(20, 50, 50);
-  const advice = buildPaceAdvice(snapshot, now, [historySample(snapshot, 6, 100)]);
+  const advice = buildPaceAdvice(snapshot, now, [historySample(snapshot, 6, 100, 100)]);
   assert.equal(advice.overall.status, "slow", "behind both ideal and dynamic references means slow down");
   assert.equal(advice.overall.reasonCode, "bothReferencesBehind", "both-reference reason is explicit");
 }
@@ -255,7 +255,9 @@ assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: null }), null, "u
 {
   const snapshot = makeSnapshot(98, 98, 50);
   const advice = buildPaceAdvice(snapshot, now, [historySample(snapshot, 0.6, 99)]);
-  assert.equal(advice.longWindow.velocity.recentRequiredRemainingPercent, 100, "raw short 7d sample can still project high");
+  assert.equal(advice.longWindow.velocity.recentRequiredRemainingPercent, 0, "unsupported raw 7d tick is not used as fractional speed");
+  assert.equal(advice.longWindow.velocity.rawBurnedPercent, 1, "raw 7d tick remains visible for diagnostics");
+  assert.equal(advice.longWindow.velocity.smoothedBurnedPercent, 0, "5h-assisted fractional 7d burn suppresses unsupported tick");
   assert.ok(advice.longWindow.velocity.requiredRemainingPercent < 99, "low-confidence 7d sample is damped near ideal");
   assert.equal(advice.overall.status, "normal", "tiny early 7d burn does not become a false slowdown");
 }
@@ -266,6 +268,46 @@ assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: null }), null, "u
   assert.equal(advice.shortWindow.velocity.recentRequiredRemainingPercent, 100, "5h fast burn stays sensitive");
   assert.equal(advice.overall.status, "recentFast", "5h pressure still drives recent-fast advice");
   assert.equal(advice.overall.reasonCode, "shortWindowTight", "5h pressure source remains explicit");
+}
+
+{
+  const snapshot = makeSnapshot(95, 5, 80);
+  const unsupported = buildPaceAdvice(snapshot, now, [historySample(snapshot, 0.5, 96, 80)]);
+  assert.ok(
+    unsupported.longWindow.velocity.recentRequiredRemainingPercent < 10,
+    "unsupported 7d integer tick is damped by 5h evidence"
+  );
+  assert.equal(unsupported.longWindow.velocity.auxiliaryBurnedPercent, 0, "5h support is reported");
+
+  const supported = buildPaceAdvice(snapshot, now, [historySample(snapshot, 0.5, 96, 86)]);
+  assert.ok(
+    supported.longWindow.velocity.recentRequiredRemainingPercent > 15,
+    "5h-supported 7d tick uses fractional 5h-derived speed"
+  );
+  assert.equal(supported.longWindow.velocity.rawBurnedPercent, 1, "raw tick is reported separately");
+  assert.equal(supported.longWindow.velocity.smoothedBurnedPercent, 1, "fractional 7d burn is derived from 5h usage");
+  assert.equal(supported.longWindow.velocity.shortToLongUsageRatio, 0.17, "5h to 7d ratio is exposed for diagnostics");
+}
+
+{
+  const snapshot = makeSnapshot(91, 89.3, 78);
+  const advice = buildPaceAdvice(snapshot, now, [historySample(snapshot, 0.5, 92, 78)]);
+  assert.equal(advice.longWindow.velocity.rawBurnedPercent, 1, "official 7d integer tick is retained");
+  assert.equal(advice.longWindow.velocity.smoothedBurnedPercent, 0, "7d integer tick without 5h support is suppressed");
+  assert.equal(advice.longWindow.velocity.recentRequiredRemainingPercent, 0, "blue 7d line no longer jumps on unsupported integer tick");
+  assert.ok(advice.longWindow.velocity.requiredRemainingPercent < 90, "combined velocity stays below the ideal line after an unsupported tick");
+}
+
+{
+  const snapshot = makeSnapshot(60, 50, 50);
+  const history = [
+    historySample(snapshot, 24, 72, 100),
+    historySample(snapshot, 12, 66, 75)
+  ];
+  const advice = buildPaceAdvice(snapshot, now, history);
+  assert.equal(advice.longWindow.velocity.observedShortToLongUsageRatio, 0.24, "observed ratio is reported");
+  assert.equal(advice.longWindow.velocity.shortToLongUsageRatioConfidence, 0.5, "ratio confidence grows with evidence");
+  assert.equal(advice.longWindow.velocity.shortToLongUsageRatio, 0.21, "ratio blends prior with local history");
 }
 
 {
@@ -288,7 +330,7 @@ assert.equal(urgentPaceDeltaThreshold({ idealRemainingPercent: null }), null, "u
     {
       fetchedAt: "2026-06-02T06:00:00.000Z",
       primary: {
-        remainingPercent: 100,
+        remainingPercent: 50,
         windowDurationMins: snapshot.primary.windowDurationMins,
         resetsAt: "2026-06-02T05:00:00.000Z"
       },
@@ -332,4 +374,4 @@ assert.throws(
   "rejects invalid reset timestamps"
 );
 
-console.log(`Verified ${cases.length} pace advice cases, 7 dynamic pace checks, and 5 quota normalization checks.`);
+console.log(`Verified ${cases.length} pace advice cases, 10 dynamic pace checks, and 5 quota normalization checks.`);

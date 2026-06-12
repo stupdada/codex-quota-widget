@@ -79,12 +79,42 @@
 - 2026-06-12 02:23:23 +0800: State -> done
   Reason: learned dynamic velocity implemented, validated, built, launched, and hibernate timer scheduled
   Next: computer will hibernate after scheduled 60 second delay
+
+- 2026-06-12 16:05:23 +0800: State -> implementing
+  Reason: add 5h-informed 7d velocity anti-jitter
+  Next: patch pace advice and tests
+
+- 2026-06-12 16:11:28 +0800: State -> verifying
+  Reason: tests passed; preparing build overwrite
+  Next: stop running portable app, build, launch, verify path
+
+- 2026-06-12 16:15:56 +0800: State -> done
+  Reason: 5h-informed 7d anti-jitter implemented, validated, built, and launched
+  Next: user observes new 7d cyan line behavior
+
+- 2026-06-12 17:13:54 +0800: State -> done
+  Reason: dynamic short-to-long ratio implemented, validated, built, and relaunched
+  Next: observe whether ratio confidence increases and 7d marker remains stable under continued use
+
+- 2026-06-12 18:41:47 +0800: State -> implementing
+  Reason: implement fractional 7d velocity smoothing
+  Next: patch pace-advice and regression tests
+
+- 2026-06-12 18:50:56 +0800: State -> done
+  Reason: fractional long-window velocity implemented, validated, built, and relaunched
+  Next: observe whether blue line movement is smoother; if right-edge position is still too visually aggressive, add display/ramp smoothing separately
 ## context
 - Relevant files, commands, constraints, forbidden areas, and assumptions go here.
 
 - 2026-06-10 08:34:38 +0800: Start state: clean git tree on codex-20260609-usage-pace-advice. Prior measurements: quota read ~1s due to spawning codex app-server per refresh; packaged idle ~340MB working set and ~0.55% one-core CPU over 20s. Scope: implement requested optimizations 1/2/3/5/6 plus compact resize jump fix.
 
 - 2026-06-10 15:17:49 +0800: Task: replace compact floating orb with a top-center HUD capsule. Acceptance: compact state shows 7d/5h actual bars, ideal white ticks, signed deltas, hover details, and glass/island themes without storing screenshots or image data in JSON/JSONL.
+
+- 2026-06-12 16:05:23 +0800: 2026-06-12: User approved implementing 7d cyan velocity anti-jitter using 5h->7d ratio. Local history rough ratio was about 0.18; user screenshot supports about 0.16-0.17; use 0.17 as initial prior and keep scope to pace algorithm/tests/build.
+
+- 2026-06-12 17:05:19 +0800: 2026-06-12: User approved making the 5h->7d ratio dynamic. Keep 0.17 as prior; learn slowly from quota-history evidence with bounds and confidence; rebuild portable after validation.
+
+- 2026-06-12 18:41:47 +0800: 2026-06-12: User approved replacing 7d integer-tick velocity input with 5h-assisted fractional long-window curve. Continue on existing dirty task branch; preserve prior dynamic-ratio changes and build/runtime verification pattern.
 ## progress
 - Not started.
 
@@ -111,6 +141,14 @@
 - 2026-06-12 01:53:35 +0800: 2026-06-12: Refined compact reference labels. Delta text now has a small right offset, all reference percentages render above the track, and reference label collision uses actual DOM rect overlap so only the ideal percentage remains when labels touch.
 
 - 2026-06-12 02:20:30 +0800: 2026-06-12: Implemented learned dynamic velocity model. 7d uses confidence-blended recent windows plus hourly learned profile; 5h remains sensitive; no-history velocity falls back to ideal; cross-reset history feeds learning without direct percentage subtraction. Added local simulation script.
+
+- 2026-06-12 16:15:56 +0800: 2026-06-12: Implemented 5h-informed 7d velocity anti-jitter. Long-window recent speed now caps measured 7d burn by same-interval 5h burn * 0.17 plus 0.5pp quantization allowance; early learned profile confidence is scaled by observed hours up to 24h; simulation exposes auxiliary/adjusted burn diagnostics.
+
+- 2026-06-12 17:13:54 +0800: 2026-06-12: Implemented dynamic 5h->7d usage ratio learning. The long-window velocity cap keeps 0.17 as the prior, learns observed 7d/5h burn ratio from same-interval quota history, clamps it to 0.12..0.25, and blends by long burn, 5h auxiliary burn, and observed hours confidence. Runtime diagnostics now expose auxiliaryBurnedPercent, adjustedBurnedPercent, shortToLongUsageRatio, shortToLongUsageRatioConfidence, and observedShortToLongUsageRatio.
+
+- 2026-06-12 18:50:56 +0800: 2026-06-12: Implemented 5h-assisted fractional long-window velocity. Long-window recent and learned velocity now use raw 7d intervals for diagnostics/ratio learning but replace long burn with auxiliary 5h burn * dynamic shortToLongUsageRatio when same-interval 5h evidence exists. This makes unsupported 7d integer ticks produce rawBurnedPercent without moving the blue line; supported 5h usage moves the long velocity continuously as smoothedBurnedPercent.
+
+- 2026-06-12 20:56:28 +0800: 2026-06-12: Prepared v0.2.3 release. README now documents 5h-assisted fractional 7d velocity, package.json version bumped to 0.2.3, tests/build passed, and CodexQuota.exe was rebuilt for release.
 ## decisions
 - No durable decisions recorded yet.
 
@@ -140,3 +178,11 @@
 - 2026-06-12 01:53:35 +0800: Passed after reference-label refinement: node --check changed JS files; npm.cmd test; git diff --check; npm.cmd run build; app.asar contains renderer and style updates.
 
 - 2026-06-12 02:22:53 +0800: 2026-06-12: Passed node --check for changed JS files; npm.cmd test; git diff --check with LF/CRLF warnings only; node scripts/simulate-dynamic-velocity.js using C:\\Users\\Administrator\\AppData\\Roaming\\codex-quota-widget history (26 samples) showed 7d legacy raw required 100 vs new required 99.5 and overall normal; npm.cmd run build produced dist\\CodexQuota.exe SHA256 BD476B783302302C646570F9F502AEB6F05715AC08F9C4AA0496196C6583DE76; launched dist exe and verified process path.
+
+- 2026-06-12 16:15:56 +0800: 2026-06-12: Passed node --check for changed JS files; npm.cmd test; git diff --check with CRLF warnings only; node scripts/simulate-dynamic-velocity.js; npm.cmd run build; verified dist\\CodexQuota.exe SHA256 F89A0C62D04E568F6D0D3EE54EDAA39B4D96F06E21B9501EFBE08206BE24DE7B; relaunched dist exe and cache refreshed with ratio=0.17, auxiliaryBurned=30, adjustedBurned=5, longRequired=68.6, overall=normal.
+
+- 2026-06-12 17:13:54 +0800: 2026-06-12: Passed node --check for changed JS files; npm.cmd run test:pace; node scripts\simulate-dynamic-velocity.js; npm.cmd test; git diff --check with CRLF warnings only; fallback audit dynamic-short-long-ratio pass-with-risk; npm.cmd run build; app.asar contains estimateShortToLongUsageRatio and observedShortToLongUsageRatio; dist\CodexQuota.exe SHA256 5E29A6E619BB01E59133997E4CC552CFD1A3AAA2BA533E7F464CEE408F792204; relaunched dist exe and cache refreshed with ratio=0.17, confidence=0.15, observedRatio=0.18, auxiliaryBurned=34, adjustedBurned=6, longRecentRequired=85.6.
+
+- 2026-06-12 18:50:56 +0800: 2026-06-12: Passed node --check for changed JS files; npm.cmd test; git diff --check with CRLF warnings only; node scripts\\simulate-dynamic-velocity.js; fallback audit fractional-long-velocity pass-with-risk; npm.cmd run build; app.asar contains usageIntervalsForRole/longFractionalInterval/smoothedBurnedPercent; relaunched dist\\CodexQuota.exe SHA256 42AECC1CB54D20B19BCFE53A3E0531FB121938F7D143C9E10484BA3CA7D5ED2E; runtime cache refreshed with raw=9, auxiliary=52, smoothed=8.9, ratio=0.17, recent=100, combined=97.9.
+
+- 2026-06-12 20:56:28 +0800: 2026-06-12: Release validation passed: npm.cmd test; npm.cmd run build; git diff --check with CRLF warnings only; app.asar package version 0.2.3 and contains longFractionalInterval/smoothedBurnedPercent; dist\\CodexQuota.exe SHA256 C48824040C2C92B9A56F44214A40DEFCC8C89C3260A9D125372496DAC6039D17.
