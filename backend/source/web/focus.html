@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="application-name" content="codex-token-dashboard-app-v4">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23181a1f'/%3E%3Cpath d='M9 20v-6m7 6V9m7 11v-8' stroke='%23f7f8fa' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+  <title>Codex 用量监控</title>
+  <link rel="stylesheet" href="/assets/dashboard.css">
+  <script defer src="/assets/dashboard-core.js"></script>
+  <script defer src="/assets/dashboard.js"></script>
+</head>
+<body data-loading="true" data-active-tab="projects">
+  <a class="skip-link" href="#conclusionStage">跳到费用概览</a>
+
+  <header id="appHeader" class="app-header">
+    <div class="header-inner">
+      <a class="app-title" href="#conclusionStage" aria-label="Codex 用量监控首页">
+        <span class="app-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>Codex 用量监控</span>
+      </a>
+
+      <nav class="primary-controls" aria-label="统计控制">
+        <label class="project-control" for="projectInput">
+          <span class="sr-only">项目筛选</span>
+          <svg aria-hidden="true" viewBox="0 0 20 20"><path d="m14.7 14.7 3.1 3.1M16 9A7 7 0 1 1 2 9a7 7 0 0 1 14 0Z"/></svg>
+          <input id="projectInput" type="search" autocomplete="off" placeholder="筛选项目" aria-label="按项目路径筛选">
+        </label>
+
+        <div id="rangeMenu" class="range-menu" aria-label="时间范围">
+          <button type="button" data-preset="last_15m">15 分钟</button>
+          <button type="button" data-preset="last_1h">1 小时</button>
+          <button type="button" data-preset="last_3h">3 小时</button>
+          <button type="button" data-preset="last_24h">24 小时</button>
+          <button type="button" data-preset="last_48h">48 小时</button>
+          <button type="button" data-preset="last_72h">72 小时</button>
+          <button type="button" data-preset="today">今日</button>
+          <button type="button" data-preset="week">本周</button>
+          <button type="button" data-preset="cycle_5h">5h周期</button>
+          <button type="button" data-preset="cycle_7d">7d周期</button>
+          <button type="button" data-preset="custom">自定义</button>
+        </div>
+
+        <button id="thresholdButton" class="text-control" type="button" aria-expanded="false" aria-controls="thresholdPopover">
+          阈值 <span id="thresholdButtonValue">$20/h</span>
+        </button>
+        <button id="moreButton" class="icon-control" type="button" aria-label="更多设置" aria-expanded="false" aria-controls="morePanel">
+          <span>更多</span><svg aria-hidden="true" viewBox="0 0 20 20"><circle cx="4" cy="10" r="1.4"/><circle cx="10" cy="10" r="1.4"/><circle cx="16" cy="10" r="1.4"/></svg>
+        </button>
+        <button id="refreshButton" class="refresh-control" type="button" aria-label="刷新统计">
+          <svg aria-hidden="true" viewBox="0 0 20 20"><path d="M16.4 7A7 7 0 1 0 17 11M16.4 7V2.8M16.4 7h-4.2"/></svg>
+          <span>刷新</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <div id="thresholdPopover" class="floating-panel threshold-panel" hidden>
+    <div class="panel-heading">
+      <div><strong>费用速率阈值</strong><span>用于当前筛选视图</span></div>
+      <button type="button" class="close-panel" data-close-panel="thresholdPopover" aria-label="关闭阈值设置">×</button>
+    </div>
+    <label class="money-input" for="thresholdInput"><span>$</span><input id="thresholdInput" type="number" min="0.01" step="0.01" inputmode="decimal" aria-label="费用速率阈值（美元/小时）" aria-describedby="thresholdHelp thresholdError"><span>/h</span></label>
+    <p id="thresholdHelp" class="field-help">输入每小时费用上限，单位为美元。</p>
+    <p id="thresholdError" class="field-error" role="alert"></p>
+    <div class="panel-actions">
+      <button id="resetThreshold" type="button" class="quiet-action">恢复 $20/h</button>
+      <button id="saveThreshold" type="button" class="primary-action">保存</button>
+    </div>
+  </div>
+
+  <div id="morePanel" class="floating-panel more-panel" hidden>
+    <div class="panel-heading">
+      <div><strong>显示与范围</strong><span>低频控制集中在这里</span></div>
+      <button type="button" class="close-panel" data-close-panel="morePanel" aria-label="关闭更多设置">×</button>
+    </div>
+    <label class="mobile-range-control" for="presetModeMobile">
+      <span>时间范围</span>
+      <select id="presetModeMobile">
+        <option value="last_15m">最近 15 分钟</option>
+        <option value="last_1h">最近 1 小时</option>
+        <option value="last_3h">最近 3 小时</option>
+        <option value="last_24h">最近 24 小时</option>
+        <option value="last_48h">最近 48 小时</option>
+        <option value="last_72h">最近 72 小时</option>
+        <option value="today">今日</option>
+        <option value="week">本周</option>
+        <option value="cycle_5h">5h周期</option>
+        <option value="cycle_7d">7d周期</option>
+        <option value="custom">自定义</option>
+      </select>
+    </label>
+    <label class="mobile-project-control" for="projectInputMobile">
+      <span>项目筛选</span>
+      <input id="projectInputMobile" type="search" autocomplete="off" placeholder="输入项目路径关键词">
+    </label>
+    <button id="thresholdInlineButton" class="mobile-settings-entry" type="button" aria-expanded="false" aria-controls="thresholdPopover">
+      <span>费用速率阈值</span><strong id="thresholdInlineValue">$20.00/h</strong>
+    </button>
+    <button id="shortcutSettingsButton" class="settings-entry" type="button" aria-haspopup="dialog" aria-controls="shortcutDialog">
+      <span><strong>快捷键</strong><small>仪表盘与悬浮窗</small></span><b>设置</b>
+    </button>
+    <button id="signalSettingsButton" class="settings-entry" type="button" aria-haspopup="dialog" aria-controls="signalSettingsDialog">
+      <span><strong>灯效与用量</strong><small>额度灯效、刷新与美元范围</small></span><b>设置</b>
+    </button>
+    <div class="settings-row">
+      <label for="numberMode">数字显示<select id="numberMode"><option value="compact">万 / 亿</option><option value="full">完整数字</option></select></label>
+      <label for="bucketMode">趋势粒度<select id="bucketMode"><option value="auto">自动</option><option value="1">1 分钟</option><option value="2">2 分钟</option><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="15">15 分钟</option><option value="30">30 分钟</option><option value="60">1 小时</option></select></label>
+    </div>
+    <fieldset id="customRangeFields" class="custom-range">
+      <legend>自定义范围</legend>
+      <label for="customStart">开始<input id="customStart" type="datetime-local" step="1"></label>
+      <div class="custom-end-control">
+        <div class="custom-end-heading"><span>结束时间</span><div class="end-mode-switch" role="group" aria-label="结束时间模式"><button id="fixedEndMode" type="button" aria-pressed="true">指定时间</button><button id="nowEndMode" type="button" aria-pressed="false">现在</button></div></div>
+        <input id="customEnd" type="datetime-local" step="1" aria-label="结束时间">
+        <p id="customEndHint" class="custom-end-hint" hidden>每次刷新时取当前时间</p>
+      </div>
+      <div class="custom-actions">
+        <button id="applyCustom" type="button" class="primary-action">应用</button>
+        <button id="pinCustom" type="button" class="quiet-action">固定范围</button>
+        <button id="updatePinned" type="button" class="quiet-action">更新固定范围</button>
+      </div>
+      <p id="customRangeError" class="field-error" role="alert"></p>
+    </fieldset>
+    <div id="pinnedRanges" class="pinned-ranges" aria-label="固定范围"></div>
+    <section class="reset-exit-setting" aria-labelledby="resetExitTitle">
+      <div class="reset-exit-heading">
+        <span><strong id="resetExitTitle">额度重置后退出 Codex</strong><small>一次性待命；直接读取账户额度，不使用页面缓存</small></span>
+        <button id="cancelResetExit" type="button" class="quiet-action">取消待命</button>
+      </div>
+      <div class="reset-exit-actions" role="group" aria-label="选择待命额度周期">
+        <button id="armResetFive" type="button" class="quiet-action" data-reset-cycle="five_hour">5h 重置后退出</button>
+        <button id="armResetWeekly" type="button" class="quiet-action" data-reset-cycle="weekly">7d 重置后退出</button>
+      </div>
+      <p id="resetExitStatus" class="reset-exit-status" role="status" aria-live="polite">正在读取直接额度状态</p>
+    </section>
+    <label class="startup-setting" for="startupEnabled">
+      <span><strong>开机启动</strong><small id="startupStatus">手动启用后，登录 Windows 时启动</small></span>
+      <input id="startupEnabled" type="checkbox" role="switch">
+    </label>
+    <button id="diagnosticsToggle" type="button" class="diagnostics-toggle" aria-expanded="false" aria-controls="diagnosticsPanel">显示扫描诊断</button>
+    <pre id="diagnosticsPanel" class="diagnostics-panel" hidden tabindex="0"></pre>
+  </div>
+
+  <dialog id="shortcutDialog" class="shortcut-dialog" aria-labelledby="shortcutDialogTitle">
+    <div class="shortcut-dialog-heading">
+      <div><strong id="shortcutDialogTitle">快捷键</strong><span>全局生效，默认均为无</span></div>
+      <button id="closeShortcutDialog" class="close-panel" type="button" aria-label="关闭快捷键设置">×</button>
+    </div>
+    <div class="shortcut-list">
+      <div class="shortcut-row" data-shortcut-action="toggleDashboard">
+        <span><strong>打开/关闭仪表盘</strong><small>显示、聚焦或隐藏主仪表盘</small></span>
+        <output data-shortcut-value="toggleDashboard">无</output>
+        <button type="button" class="quiet-action" data-shortcut-record="toggleDashboard">录制</button>
+        <button type="button" class="quiet-action" data-shortcut-clear="toggleDashboard">清除</button>
+      </div>
+      <div class="shortcut-row" data-shortcut-action="toggleFloatingWidget">
+        <span><strong>打开/关闭悬浮窗</strong><small>恢复上次位置或隐藏 LED</small></span>
+        <output data-shortcut-value="toggleFloatingWidget">无</output>
+        <button type="button" class="quiet-action" data-shortcut-record="toggleFloatingWidget">录制</button>
+        <button type="button" class="quiet-action" data-shortcut-clear="toggleFloatingWidget">清除</button>
+      </div>
+    </div>
+    <p class="shortcut-help">点击录制后按组合键；Esc 取消，Backspace 或 Delete 清除。</p>
+    <p id="shortcutError" class="field-error" role="alert"></p>
+    <div class="panel-actions">
+      <button id="cancelShortcutSettings" type="button" class="quiet-action">取消</button>
+      <button id="saveShortcutSettings" type="button" class="primary-action">保存</button>
+    </div>
+  </dialog>
+
+  <dialog id="signalSettingsDialog" class="shortcut-dialog signal-settings-dialog" aria-labelledby="signalSettingsDialogTitle">
+    <div class="shortcut-dialog-heading">
+      <div><strong id="signalSettingsDialogTitle">灯效与用量</strong><span>灯色只由额度状态决定，美元仅显示用量</span></div>
+      <button id="closeSignalSettingsDialog" class="close-panel" type="button" aria-label="关闭灯效与用量设置">×</button>
+    </div>
+    <div class="signal-settings-list">
+      <label class="signal-setting-row" for="signalWarningBreathInput">
+        <span><strong>额度告警呼吸周期</strong><small>额度偏低或低于理想线时</small></span>
+        <input id="signalWarningBreathRange" type="range" min="1" max="20" step="0.5">
+        <span class="signal-number-control"><input id="signalWarningBreathInput" type="number" min="1" max="20" step="0.5"><em>秒</em></span>
+      </label>
+      <label class="signal-setting-row" for="signalCriticalBlinkInput">
+        <span><strong>接近耗尽闪烁周期</strong><small>额度接近耗尽时</small></span>
+        <input id="signalCriticalBlinkRange" type="range" min="1" max="20" step="0.5">
+        <span class="signal-number-control"><input id="signalCriticalBlinkInput" type="number" min="1" max="20" step="0.5"><em>秒</em></span>
+      </label>
+      <label class="signal-setting-row" for="signalQuotaRefreshInput">
+        <span><strong>额度刷新间隔</strong><small>悬浮窗可见时的刷新频率</small></span>
+        <input id="signalQuotaRefreshRange" type="range" min="1" max="30" step="1">
+        <span class="signal-number-control"><input id="signalQuotaRefreshInput" type="number" min="1" max="30" step="1"><em>分钟</em></span>
+      </label>
+      <label class="signal-setting-row signal-setting-select" for="signalUsageRangeSelect">
+        <span><strong>展开态美元用量范围</strong><small>只显示累计用量，不显示速度</small></span>
+        <select id="signalUsageRangeSelect">
+          <option value="cycle_5h">当前 5h 周期</option>
+          <option value="cycle_7d">当前 7d 周期</option>
+          <option value="last_3h">最近 3 小时</option>
+          <option value="today">今天</option>
+          <option value="week">本周</option>
+        </select>
+      </label>
+    </div>
+    <p id="signalSettingsError" class="field-error" role="alert"></p>
+    <div class="panel-actions signal-settings-actions">
+      <button id="resetSignalSettings" type="button" class="quiet-action">恢复默认</button>
+      <span></span>
+      <button id="cancelSignalSettings" type="button" class="quiet-action">取消</button>
+      <button id="saveSignalSettings" type="button" class="primary-action">保存</button>
+    </div>
+  </dialog>
+
+  <main>
+    <section id="focusCockpit" class="focus-cockpit" aria-label="用量聚焦概览">
+      <div class="focus-analysis">
+    <section id="conclusionStage" class="conclusion-stage" aria-labelledby="conclusionTitle">
+      <div class="conclusion-copy">
+        <p id="rangeEyebrow" class="range-eyebrow">最近 3 小时 · 正在读取</p>
+        <h1 id="conclusionTitle">
+          <span id="rangeNarrative">过去 3 小时</span>，<span class="fee-label">预计费用</span>
+          <span class="value-cluster">
+            <button id="costDisclosure" class="hero-value" type="button" aria-expanded="false" aria-controls="costDetails" aria-details="costDetails">
+              <output id="costValue">$—</output>
+            </button>
+            <span id="costDetails" class="value-popover" role="tooltip" hidden></span>
+          </span>
+        </h1>
+        <p class="rate-sentence">
+          所选时段费用速率
+          <span class="value-cluster rate-cluster">
+            <button id="rateDisclosure" class="rate-value" type="button" aria-expanded="false" aria-controls="rateDetails" aria-details="rateDetails">
+              <output id="rateValue">$—/h</output>
+            </button>
+            <span id="rateDetails" class="value-popover" role="tooltip" hidden></span>
+          </span>
+        </p>
+      </div>
+    </section>
+
+    <section id="trendStage" class="trend-stage" aria-labelledby="trendTitle">
+      <div class="stage-inner">
+        <header class="stage-heading">
+          <div><p id="trendRangeLabel" class="section-kicker">所选时段</p><h2 id="trendTitle">费用速率趋势</h2></div>
+          <div class="trend-control-stack">
+            <div id="quotaChartControls" class="quota-chart-controls" hidden>
+              <div class="quota-line-toggles" role="group" aria-label="显示额度曲线">
+                <button type="button" data-quota-line="five" aria-pressed="true"><i class="quota-line-swatch is-five" aria-hidden="true"></i>5h</button>
+                <button type="button" data-quota-line="seven" aria-pressed="true"><i class="quota-line-swatch is-seven" aria-hidden="true"></i>7d</button>
+                <button type="button" data-quota-line="ideal" aria-pressed="true"><i class="quota-line-swatch is-ideal" aria-hidden="true"></i>7d 理想</button>
+              </div>
+            </div>
+            <div class="trend-control-cluster">
+              <div id="costChartMode" class="chart-style-tabs" role="tablist" aria-label="费用图形样式">
+                <button type="button" role="tab" data-cost-chart-mode="pulse" aria-selected="true" aria-controls="trendPlot">峰值图</button>
+                <button type="button" role="tab" data-cost-chart-mode="line" aria-selected="false" aria-controls="trendPlot" tabindex="-1">折线图</button>
+              </div>
+              <div id="trendMode" class="text-tabs compact-tabs" role="tablist" aria-label="趋势指标">
+                <button id="costTrendTab" type="button" role="tab" data-trend-mode="cost" aria-selected="true" aria-controls="trendPlot">费用速率</button>
+                <button id="tokenTrendTab" type="button" role="tab" data-trend-mode="tokens" aria-selected="false" aria-controls="trendPlot" tabindex="-1">Token</button>
+                <button id="quotaTrendTab" type="button" role="tab" data-trend-mode="quota" aria-selected="false" aria-controls="trendPlot" tabindex="-1">额度</button>
+                <i class="tab-indicator" aria-hidden="true"></i>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div id="trendPlot" class="trend-plot" role="tabpanel" aria-labelledby="costTrendTab">
+          <canvas id="trendCanvas" tabindex="0" aria-label="费用速率趋势图，可用左右方向键浏览数据点">图表详情可通过左右方向键逐点浏览。</canvas>
+          <div id="trendTooltip" class="trend-tooltip" role="status" aria-live="polite" hidden></div>
+          <div id="quotaChartStatus" class="quota-chart-status" role="status" aria-live="polite" hidden></div>
+          <div id="trendEmpty" class="trend-empty" hidden>当前范围没有可绘制的数据</div>
+        </div>
+        <div id="selectionBar" class="selection-bar" hidden>
+          <span id="selectedRangeText">已选择趋势范围</span>
+          <div><button id="clearSelection" type="button" class="quiet-action">取消</button><button id="applySelection" type="button" class="primary-action">应用为统计范围</button></div>
+        </div>
+      </div>
+    </section>
+      </div>
+
+      <aside class="insight-rail" aria-label="用量洞察">
+        <p class="insight-label">当前状态</p>
+        <div id="thresholdState" class="threshold-state" data-threshold-state="steady" aria-label="费用速率阈值状态" aria-live="polite">
+          <div class="threshold-orbit" aria-hidden="true">
+            <svg viewBox="0 0 120 120"><circle class="orbit-track" cx="60" cy="60" r="50"/><circle id="thresholdOrbit" class="orbit-value" cx="60" cy="60" r="50"/></svg>
+            <span id="thresholdPercent">—</span>
+          </div>
+          <div class="threshold-copy"><span>费用速率阈值</span><strong id="thresholdHeadline">正在计算</strong><p id="thresholdDescription">费用数据加载后显示比较结果</p></div>
+        </div>
+        <div id="summaryFacts" class="summary-facts" aria-label="用量摘要">
+          <span>Token 总量 —</span><span>缓存命中率 —</span><span>活跃线程 —</span><span>活跃耗时 —</span><span>非缓存输入 —</span>
+        </div>
+        <section class="rail-quota" aria-labelledby="railQuotaTitle">
+          <div class="rail-quota-heading"><h3 id="railQuotaTitle">本机账户额度</h3><span id="railQuotaFreshness">正在读取</span></div>
+          <div class="rail-quota-row" data-quota-row="five">
+            <div><span>5h 剩余</span><strong id="railQuotaFivePercent">—</strong></div>
+            <div id="railQuotaFiveTrack" class="quota-track compact" role="progressbar" aria-label="5h 剩余额度" aria-valuemin="0" aria-valuemax="100"><i id="railQuotaFiveBar"></i></div>
+            <small id="railQuotaFiveReset">正在定位重置时间</small>
+          </div>
+          <div class="rail-quota-row" data-quota-row="weekly">
+            <div><span>每周剩余</span><strong id="railQuotaWeeklyPercent">—</strong></div>
+            <div id="railQuotaWeeklyTrack" class="quota-track compact" role="progressbar" aria-label="每周剩余额度" aria-valuemin="0" aria-valuemax="100"><i id="railQuotaWeeklyBar"></i></div>
+            <small id="railQuotaWeeklyReset">正在定位重置时间</small>
+          </div>
+          <div class="rail-estimates" aria-label="额度美元等价估算">
+            <span><small>5h 等价</small><strong id="railFiveEstimate">—</strong></span>
+            <span><small>7d 等价</small><strong id="railWeeklyEstimate">—</strong></span>
+          </div>
+          <p id="railEstimateNote" class="rail-estimate-note">额度等价估算，非账单</p>
+        </section>
+        <section class="top-consumers" aria-labelledby="topConsumersTitle">
+          <div class="top-consumers-heading"><h3 id="topConsumersTitle">主要消耗</h3><span>按费用排序</span></div>
+          <ol id="topConsumersList"><li>等待首次更新</li></ol>
+        </section>
+        <p id="insightFooter" class="insight-footer">本地会话统计</p>
+      </aside>
+    </section>
+
+    <section id="sourcesStage" class="sources-stage" aria-labelledby="sourcesTitle">
+      <div class="stage-inner source-heading">
+        <div><p class="section-kicker">费用构成</p><h2 id="sourcesTitle">主要费用来自哪里？</h2></div>
+        <div id="dataTabs" class="text-tabs data-tabs" role="tablist" aria-label="费用明细类型">
+          <button id="projectsTab" type="button" role="tab" data-tab="projects" aria-selected="true" aria-controls="auditStage">项目</button>
+          <button id="threadsTab" type="button" role="tab" data-tab="threads" aria-selected="false" aria-controls="auditStage" tabindex="-1">线程</button>
+          <button id="activityTab" type="button" role="tab" data-tab="activity" aria-selected="false" aria-controls="auditStage" tabindex="-1">最近活动</button>
+          <i class="tab-indicator" aria-hidden="true"></i>
+        </div>
+      </div>
+    </section>
+
+    <section id="auditStage" class="audit-stage" data-tone="light" role="tabpanel" aria-labelledby="projectsTab">
+      <div class="stage-inner">
+        <p id="listContext" class="list-context">按预计费用中点排序</p>
+        <ol id="dataList" class="editorial-list">
+          <li class="list-skeleton"><span></span><span></span><span></span></li>
+          <li class="list-skeleton"><span></span><span></span><span></span></li>
+          <li class="list-skeleton"><span></span><span></span><span></span></li>
+        </ol>
+        <section id="detailRegion" class="detail-region" aria-label="所选明细" hidden></section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <div class="footer-inner"><span>本地统计 · 自动模型计价</span><span id="lastUpdated">等待首次更新</span></div>
+  </footer>
+
+  <div id="statusRegion" class="status-region" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

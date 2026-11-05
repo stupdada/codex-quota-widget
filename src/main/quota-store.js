@@ -8,12 +8,18 @@ const CACHE_FILE_NAME = "quota-cache.json";
 const HISTORY_FILE_NAME = "quota-history.json";
 const CACHE_VERSION = 1;
 const HISTORY_VERSION = 1;
-const HISTORY_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const HISTORY_FINE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const HISTORY_MAX_AGE_MS = 180 * 24 * 60 * 60 * 1000;
 const HISTORY_MAX_SAMPLES = 4096;
+const HISTORY_COARSE_MAX_SAMPLES_PER_DAY = 6;
 const VISIBLE_REFRESH_INTERVAL_MS = 3 * 60 * 1000;
-const HIDDEN_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
+const HIDDEN_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const ERROR_RETRY_BASE_MS = 60 * 1000;
 const ERROR_RETRY_MAX_MS = 5 * 60 * 1000;
+const QUOTA_DRIFT_REMAINING_THRESHOLD = 3;
+const QUOTA_DRIFT_RESET_TOLERANCE_MS = 30 * 1000;
+const QUOTA_DRIFT_CONFIRMATION_READS = 3;
+const QUOTA_DRIFT_REFRESH_INTERVAL_MS = 5 * 1000;
 
 class QuotaStore extends EventEmitter {
   constructor({
@@ -21,6 +27,7 @@ class QuotaStore extends EventEmitter {
     readQuota = getQuota,
     visibleRefreshIntervalMs = VISIBLE_REFRESH_INTERVAL_MS,
     hiddenRefreshIntervalMs = HIDDEN_REFRESH_INTERVAL_MS,
+    driftRefreshIntervalMs = QUOTA_DRIFT_REFRESH_INTERVAL_MS,
     errorRetryBaseMs = ERROR_RETRY_BASE_MS,
     errorRetryMaxMs = ERROR_RETRY_MAX_MS,
     autoSchedule = true
@@ -35,12 +42,14 @@ class QuotaStore extends EventEmitter {
     this.readQuota = readQuota;
     this.visibleRefreshIntervalMs = visibleRefreshIntervalMs;
     this.hiddenRefreshIntervalMs = hiddenRefreshIntervalMs;
+    this.driftRefreshIntervalMs = driftRefreshIntervalMs;
     this.errorRetryBaseMs = errorRetryBaseMs;
     this.errorRetryMaxMs = errorRetryMaxMs;
     this.autoSchedule = autoSchedule;
     this.windowVisible = true;
     this.failureCount = 0;
     this.history = [];
+    this.pendingQuota = null;
     this.inFlight = null;
     this.timer = null;
     this.state = {
@@ -86,6 +95,13 @@ class QuotaStore extends EventEmitter {
     return JSON.parse(JSON.stringify(this.state));
   }
 
+  getHistoryState() {
+    return {
+      version: HISTORY_VERSION,
+      samples: JSON.parse(JSON.stringify(this.history))
+    };
+  }
+
   setWindowVisible(value) {
     this.windowVisible = Boolean(value);
     this.scheduleNextRefresh();
@@ -129,6 +145,18 @@ class QuotaStore extends EventEmitter {
   async runRefresh(reason) {
     try {
       const rawQuota = await this.readQuota(reason);
+      if (!this.acceptQuotaSnapshot(rawQuota)) {
+        this.failureCount = 0;
+        this.state = {
+          ...this.state,
+          status: this.state.quota ? "ready" : "loading",
+          error: null,
+          refreshing: false
+        };
+        this.emitState();
+        this.scheduleNextRefresh(this.driftRefreshIntervalMs);
+        return this.getState();
+      }
       this.recordHistory(rawQuota);
       const quota = this.withCurrentPaceAdvice(rawQuota, rawQuota.fetchedAt);
       const fetchedAt = quota.fetchedAt || new Date().toISOString();
@@ -159,6 +187,31 @@ class QuotaStore extends EventEmitter {
     }
 
     return this.getState();
+  }
+
+  acceptQuotaSnapshot(rawQuota) {
+    const acceptedQuota = this.state.quota;
+    if (!acceptedQuota || !isQuotaDrift(acceptedQuota, rawQuota)) {
+      this.pendingQuota = null;
+      return true;
+    }
+
+    const candidate = quotaHistorySample(rawQuota);
+    if (this.pendingQuota && hasSameWindowIdentity(this.pendingQuota.quota, candidate)) {
+      this.pendingQuota = {
+        quota: candidate,
+        confirmations: this.pendingQuota.confirmations + 1
+      };
+    } else {
+      this.pendingQuota = { quota: candidate, confirmations: 1 };
+    }
+
+    if (this.pendingQuota.confirmations >= QUOTA_DRIFT_CONFIRMATION_READS) {
+      this.pendingQuota = null;
+      return true;
+    }
+
+    return false;
   }
 
   async saveCache(quota) {
@@ -301,12 +354,127 @@ function normalizeHistoryWindow(window) {
 
 function pruneHistory(history, nowMs) {
   const safeNowMs = Number.isFinite(nowMs) ? nowMs : Date.now();
-  return history
+  const samplesWithinRetention = history
     .filter((sample) => {
       const fetchedAtMs = Date.parse(sample.fetchedAt || "");
       return Number.isFinite(fetchedAtMs) && safeNowMs - fetchedAtMs <= HISTORY_MAX_AGE_MS;
     })
-    .slice(-HISTORY_MAX_SAMPLES);
+    .sort((a, b) => Date.parse(a.fetchedAt) - Date.parse(b.fetchedAt));
+  const recentCutoffMs = safeNowMs - HISTORY_FINE_MAX_AGE_MS;
+  const coarseCandidates = [];
+  const recentSamples = [];
+
+  for (const sample of samplesWithinRetention) {
+    const fetchedAtMs = Date.parse(sample.fetchedAt || "");
+    if (fetchedAtMs >= recentCutoffMs) {
+      recentSamples.push(sample);
+    } else {
+      coarseCandidates.push(sample);
+    }
+  }
+
+  return normalizeHistory([...downsampleDailyHistory(coarseCandidates), ...recentSamples.slice(-HISTORY_MAX_SAMPLES)]);
+}
+
+function downsampleDailyHistory(samples) {
+  if (!Array.isArray(samples) || samples.length === 0) return [];
+  const buckets = new Map();
+  for (const sample of samples) {
+    const dayKey = historyLocalDateKey(sample.fetchedAt);
+    if (!dayKey) continue;
+    if (!buckets.has(dayKey)) buckets.set(dayKey, []);
+    buckets.get(dayKey).push(sample);
+  }
+
+  return [...buckets.values()]
+    .flatMap((bucket) => representativeDailySamples(bucket))
+    .sort((a, b) => Date.parse(a.fetchedAt) - Date.parse(b.fetchedAt));
+}
+
+function representativeDailySamples(bucket) {
+  const sorted = [...bucket].sort((a, b) => Date.parse(a.fetchedAt) - Date.parse(b.fetchedAt));
+  if (sorted.length <= HISTORY_COARSE_MAX_SAMPLES_PER_DAY) return sorted;
+
+  const selected = new Map();
+  const add = (sample) => {
+    if (sample?.fetchedAt) selected.set(sample.fetchedAt, sample);
+  };
+
+  add(sorted[0]);
+  add(sorted[sorted.length - 1]);
+  for (const key of ["primary", "secondary"]) {
+    add(extremeRemainingSample(sorted, key, "min"));
+    add(extremeRemainingSample(sorted, key, "max"));
+  }
+
+  return [...selected.values()].sort((a, b) => Date.parse(a.fetchedAt) - Date.parse(b.fetchedAt));
+}
+
+function extremeRemainingSample(samples, key, mode) {
+  let best = null;
+  for (const sample of samples) {
+    const remainingPercent = Number(sample?.[key]?.remainingPercent);
+    if (!Number.isFinite(remainingPercent)) continue;
+    if (!best || (mode === "min" ? remainingPercent < best.remainingPercent : remainingPercent > best.remainingPercent)) {
+      best = { sample, remainingPercent };
+    }
+  }
+  return best?.sample || null;
+}
+
+function historyLocalDateKey(isoString) {
+  const date = new Date(isoString);
+  if (!Number.isFinite(date.getTime())) return null;
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+function isQuotaDrift(acceptedQuota, candidateQuota) {
+  const candidateAtMs = Date.parse(candidateQuota?.fetchedAt || "");
+  if (!Number.isFinite(candidateAtMs)) return false;
+
+  return ["primary", "secondary"].some((key) => {
+    const acceptedWindow = acceptedQuota?.[key];
+    const candidateWindow = candidateQuota?.[key];
+    const acceptedRemaining = Number(acceptedWindow?.remainingPercent);
+    const candidateRemaining = Number(candidateWindow?.remainingPercent);
+    const acceptedResetAtMs = Date.parse(acceptedWindow?.resetsAt || "");
+    const candidateResetAtMs = Date.parse(candidateWindow?.resetsAt || "");
+    const acceptedDuration = Number(acceptedWindow?.windowDurationMins);
+    const candidateDuration = Number(candidateWindow?.windowDurationMins);
+    const remainingDrift =
+      Number.isFinite(acceptedRemaining) &&
+      Number.isFinite(candidateRemaining) &&
+      candidateRemaining - acceptedRemaining >= QUOTA_DRIFT_REMAINING_THRESHOLD;
+    const resetDrift =
+      Number.isFinite(candidateResetAtMs) &&
+      Math.abs(candidateResetAtMs - acceptedResetAtMs) > QUOTA_DRIFT_RESET_TOLERANCE_MS;
+    const durationDrift =
+      Number.isFinite(acceptedDuration) &&
+      Number.isFinite(candidateDuration) &&
+      acceptedDuration !== candidateDuration;
+    return (
+      Number.isFinite(acceptedResetAtMs) &&
+      candidateAtMs < acceptedResetAtMs &&
+      (remainingDrift || resetDrift || durationDrift)
+    );
+  });
+}
+
+function hasSameWindowIdentity(firstQuota, secondQuota) {
+  let comparedWindows = 0;
+  for (const key of ["primary", "secondary"]) {
+    const firstWindow = firstQuota?.[key];
+    const secondWindow = secondQuota?.[key];
+    if (!firstWindow || !secondWindow) continue;
+
+    const firstResetAtMs = Date.parse(firstWindow.resetsAt || "");
+    const secondResetAtMs = Date.parse(secondWindow.resetsAt || "");
+    if (!Number.isFinite(firstResetAtMs) || !Number.isFinite(secondResetAtMs)) return false;
+    if (Number(firstWindow.windowDurationMins) !== Number(secondWindow.windowDurationMins)) return false;
+    if (Math.abs(firstResetAtMs - secondResetAtMs) > QUOTA_DRIFT_RESET_TOLERANCE_MS) return false;
+    comparedWindows += 1;
+  }
+  return comparedWindows > 0;
 }
 
 function serializeError(error) {
@@ -318,10 +486,13 @@ function serializeError(error) {
 
 module.exports = {
   QuotaStore,
+  HISTORY_FINE_MAX_AGE_MS,
   HISTORY_MAX_AGE_MS,
   HISTORY_MAX_SAMPLES,
+  HISTORY_COARSE_MAX_SAMPLES_PER_DAY,
   VISIBLE_REFRESH_INTERVAL_MS,
   HIDDEN_REFRESH_INTERVAL_MS,
+  QUOTA_DRIFT_REFRESH_INTERVAL_MS,
   ERROR_RETRY_BASE_MS,
   ERROR_RETRY_MAX_MS
 };

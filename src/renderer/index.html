@@ -3,123 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Codex Quota Widget</title>
+    <title>Codex 用量监控悬浮窗</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body data-state="loading" data-view="compact" data-compact-display="hud" data-compact-expanded="false">
     <main class="widget">
-      <div class="ambient ambient-a"></div>
-      <div class="ambient ambient-b"></div>
-
-      <header class="titlebar">
-        <div class="brand">
-          <span id="trafficLight" class="traffic-light loading" aria-hidden="true"></span>
-          <div>
-            <span id="brandName" class="brand-name">Codex 额度</span>
-            <span id="stateText" class="brand-state">读取中</span>
-          </div>
-        </div>
-        <div class="window-actions">
-          <button id="langBtn" class="text-button" title="Language" aria-label="Language">EN</button>
-          <button id="compactBtn" class="icon-button" title="紧凑窗口" aria-label="紧凑窗口">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M9 9 4 4M15 9l5-5M9 15l-5 5M15 15l5 5" />
-            </svg>
-          </button>
-          <button id="pinBtn" class="icon-button active" title="取消置顶" aria-label="取消置顶">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M14 4l6 6-3 1-4 4v4l-2 2-2-6-6-2 2-2h4l4-4 1-3z" />
-            </svg>
-          </button>
-          <button id="refreshBtn" class="icon-button" title="刷新" aria-label="刷新">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M20 12a8 8 0 0 1-13.7 5.7M4 12A8 8 0 0 1 17.7 6.3M17 3v4h-4M7 21v-4h4" />
-            </svg>
-          </button>
-          <button id="minimizeBtn" class="icon-button" title="隐藏" aria-label="隐藏">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 12h14" />
-            </svg>
-          </button>
-          <button id="closeBtn" class="icon-button danger" title="退出" aria-label="退出">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
-          </button>
-        </div>
-      </header>
-
-      <section class="content">
-        <div id="liquidMeter" class="liquid-meter" aria-label="Codex 剩余额度">
-          <div class="glass-rim"></div>
-          <div id="liquidFill" class="liquid-fill">
-            <div class="wave wave-one"></div>
-            <div class="wave wave-two"></div>
-          </div>
-          <div class="shine"></div>
-          <div class="meter-copy">
-            <strong id="remaining">--%</strong>
-            <span id="remainingLabel">剩余</span>
-          </div>
-        </div>
-
-        <div class="quota-panel">
-          <div class="quota-card primary">
-            <span id="primaryLabel">5小时窗口</span>
-            <strong id="primaryText">--</strong>
-          </div>
-          <div class="quota-card">
-            <span id="secondaryLabel">7天窗口</span>
-            <strong id="secondaryText">--</strong>
-          </div>
-          <div class="quota-card slim">
-            <span id="planLabel">计划</span>
-            <strong id="planText">--</strong>
-          </div>
-        </div>
-
-        <section class="pace-panel" aria-labelledby="paceTitle">
-          <div class="pace-heading">
-            <span id="paceTitle">使用节奏建议</span>
-            <span id="paceBadge" class="pace-badge muted">--</span>
-          </div>
-          <div class="pace-line">
-            <span id="weeklyPaceLabel">7天节奏</span>
-            <strong id="weeklyPaceText">--</strong>
-          </div>
-          <div class="pace-metrics" aria-label="7天节奏指标">
-            <span><em id="actualPaceLabel">实际剩余</em><strong id="actualPaceText">--</strong></span>
-            <span><em id="idealPaceLabel">理想剩余</em><strong id="idealPaceText">--</strong></span>
-            <span><em id="velocityPaceLabel">近速需留</em><strong id="velocityPaceText">--</strong></span>
-            <span><em id="deltaPaceLabel">偏差</em><strong id="deltaPaceText">--</strong></span>
-          </div>
-        </section>
-      </section>
-
-      <footer class="status">
-        <span id="statusDot" class="status-dot loading"></span>
-        <span id="statusText">正在读取 Codex 额度...</span>
-      </footer>
-
-      <section id="compactShell" class="compact-shell" aria-label="Codex 额度 HUD">
-        <div id="compactHud" class="compact-hud" aria-label="7天窗口和5小时窗口额度 HUD">
+      <section id="compactShell" class="compact-shell" aria-label="Codex 用量监控悬浮窗">
+        <div id="compactHud" class="compact-hud" aria-label="7天窗口和5小时窗口剩余额度">
           <div class="compact-hud-glow compact-hud-glow-weekly" aria-hidden="true"></div>
           <div class="compact-hud-glow compact-hud-glow-short" aria-hidden="true"></div>
           <div class="compact-hud-shine" aria-hidden="true"></div>
-          <div id="compactPaceSignal" class="compact-pace-signal unknown" title="状态未知" aria-label="状态未知"></div>
+          <div id="compactQuotaSignal" class="compact-quota-signal quota-unavailable" title="额度不可用" aria-label="额度不可用"></div>
 
           <div class="compact-metric compact-metric-weekly">
             <div class="compact-metric-copy">
               <span class="compact-metric-label">7d</span>
               <strong id="compactWeeklyText">--</strong>
-              <span id="compactWeeklyDelta" class="compact-delta">--</span>
+              <span id="compactWeeklyDelta" class="compact-delta neutral">--</span>
             </div>
             <div class="compact-track" aria-hidden="true">
               <div id="compactWeeklyFill" class="compact-track-fill"></div>
               <div id="compactWeeklyIdeal" class="compact-ideal-marker"></div>
-              <div id="compactWeeklyVelocity" class="compact-velocity-marker"></div>
               <span id="compactWeeklyIdealText" class="compact-ideal-text">--</span>
-              <span id="compactWeeklyVelocityText" class="compact-velocity-text">--</span>
             </div>
           </div>
 
@@ -129,37 +34,36 @@
             <div class="compact-metric-copy">
               <span class="compact-metric-label">5h</span>
               <strong id="compactShortText">--</strong>
-              <span id="compactShortDelta" class="compact-delta">--</span>
+              <span id="compactShortDelta" class="compact-delta neutral">--</span>
             </div>
             <div class="compact-track" aria-hidden="true">
               <div id="compactShortFill" class="compact-track-fill"></div>
               <div id="compactShortIdeal" class="compact-ideal-marker"></div>
-              <div id="compactShortVelocity" class="compact-velocity-marker"></div>
               <span id="compactShortIdealText" class="compact-ideal-text">--</span>
-              <span id="compactShortVelocityText" class="compact-velocity-text">--</span>
             </div>
           </div>
         </div>
 
         <div id="compactControls" class="compact-controls">
           <button id="compactThemeBtn" class="compact-control-button compact-theme-button" title="切换 HUD 主题" aria-label="切换 HUD 主题">岛</button>
-          <button id="compactExpandBtn" class="compact-control-button" title="展开窗口" aria-label="展开窗口">
+          <button id="compactDashboardBtn" class="compact-control-button" title="打开 Token 仪表盘" aria-label="打开 Token 仪表盘">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M9 9 4 4M15 9l5-5M9 15l-5 5M15 15l5 5" />
             </svg>
           </button>
-          <button id="compactCloseBtn" class="compact-control-button danger" title="退出" aria-label="退出">
+          <button id="compactCloseBtn" class="compact-control-button danger" title="隐藏到托盘" aria-label="隐藏到托盘">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6 6 18" />
             </svg>
           </button>
         </div>
 
-        <div id="compactAdviceText" class="compact-advice" aria-label="使用建议">
-          <span id="compactAdviceKicker" class="compact-advice-kicker">状态</span>
-          <span id="compactAdviceValue" class="compact-advice-value">未知</span>
+        <div id="compactQuotaStatus" class="compact-advice muted" aria-live="polite">
+          <span id="compactStatusKicker" class="compact-advice-kicker">状态</span>
+          <span id="compactStatusValue" class="compact-advice-value">不可用</span>
         </div>
-        <div id="compactResetInfo" class="compact-reset-info" aria-label="窗口重置时间">
+
+        <div id="compactResetInfo" class="compact-reset-info" aria-label="额度详情">
           <div class="compact-reset-row compact-reset-weekly">
             <strong>7d</strong>
             <span class="compact-reset-label">重置时间</span>
@@ -170,7 +74,14 @@
             <span class="compact-reset-label">重置时间</span>
             <span id="compactShortResetText" class="compact-detail-reset">--</span>
           </div>
+          <div class="compact-reset-row compact-usage-row">
+            <strong id="compactUsageLabel">5h</strong>
+            <span class="compact-reset-label">用量</span>
+            <span id="compactUsageValue" class="compact-detail-reset">--</span>
+          </div>
         </div>
+
+        <div id="compactStripUsage" class="compact-strip-usage" aria-live="polite">5h 用量 --</div>
         <button id="compactResizeHandle" class="compact-resize-handle" title="缩放" aria-label="缩放"></button>
       </section>
     </main>

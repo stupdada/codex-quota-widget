@@ -1,7 +1,7 @@
 {
-  "name": "codex-quota-widget",
-  "version": "0.2.3",
-  "description": "Codex 额度小组件 / Windows desktop widget for monitoring local Codex usage quota and usage pace.",
+  "name": "codex-token-dashboard",
+  "version": "0.3.2",
+  "description": "Codex Token dashboard with an integrated LED quota widget for Windows.",
   "main": "src/main/main.js",
   "author": "Codex Quota Widget Contributors",
   "license": "MIT",
@@ -29,28 +29,47 @@
   "scripts": {
     "dev": "electron .",
     "start": "electron .",
-    "test:pace": "node scripts/verify-pace-advice.js",
-    "test:quota-store": "node scripts/verify-quota-store.js",
-    "test": "npm run test:pace && npm run test:quota-store",
+    "test:quota-signal": "node scripts/verify-quota-signal.js",
+    "test:dashboard-client": "node scripts/verify-token-dashboard-client.js",
+    "test:dashboard-runtime": "node scripts/verify-dashboard-runtime.js",
+    "test": "npm run test:quota-signal && npm run test:dashboard-client && npm run test:dashboard-runtime",
     "build": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win portable",
-    "build:dir": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --dir"
+    "build:dir": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --dir",
+    "build:backend": "python -m PyInstaller --noconfirm --distpath backend --workpath build/backend backend/source/packaging/CodexTokenDashboard-Slim.spec",
+    "prebuild": "npm run build:backend",
+    "prebuild:dir": "npm run build:backend"
   },
   "build": {
-    "appId": "cn.codex.quota.widget",
-    "productName": "Codex Quota Widget",
+    "appId": "cn.codex.token.dashboard",
+    "productName": "Codex 用量监控",
     "directories": {
       "output": "dist"
     },
     "files": [
       "src/**/*",
+      "!src/history/**/*",
+      "!src/main/pace-advice.js",
+      "!src/main/quota-service.js",
+      "!src/main/quota-store.js",
+      "!src/shared/quota-history-chart.js",
       "assets/app-icon.png",
       "assets/app-icon.ico",
       "assets/app-icon-tray-16.png",
       "assets/app-icon-256.png",
+      "assets/codex-token-dashboard.ico",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": [
+          "CodexTokenDashboard-Slim.exe"
+        ]
+      }
+    ],
     "win": {
-      "icon": "assets/app-icon.ico",
+      "icon": "assets/codex-token-dashboard.ico",
       "target": [
         {
           "target": "portable",
@@ -61,7 +80,7 @@
       ]
     },
     "portable": {
-      "artifactName": "CodexQuota.exe"
+      "artifactName": "CodexTokenDashboard.exe"
     }
   },
   "devDependencies": {

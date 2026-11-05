@@ -2,7 +2,7 @@ const COMPACT_LAYOUT = Object.freeze({
   width: 500,
   hud: Object.freeze({
     collapsedHeight: 86,
-    expandedHeight: 168
+    expandedHeight: 194
   }),
   topStrip: Object.freeze({
     collapsedHeight: 28,

@@ -9,15 +9,15 @@
   <body>
     <main class="settings-shell">
       <header>
-        <h1>灯效设置</h1>
-        <p id="statusText">灯效单位：秒，刷新单位：分钟</p>
+        <h1>额度灯效与用量</h1>
+        <p id="statusText">灯效只由 5h / 7d 额度状态决定</p>
       </header>
 
       <section class="field">
-        <label for="recentFastInput">近期偏快呼吸</label>
+        <label for="warningBreathInput">额度告警呼吸周期（秒）</label>
         <div class="control-row">
-          <input id="recentFastRange" type="range" min="1" max="20" step="0.5" />
-          <input id="recentFastInput" type="number" min="1" max="20" step="0.5" />
+          <input id="warningBreathRange" type="range" min="1" max="20" step="0.5" />
+          <input id="warningBreathInput" type="number" min="1" max="20" step="0.5" />
         </div>
       </section>
 
@@ -35,6 +35,17 @@
           <input id="quotaRefreshRange" type="range" min="1" max="30" step="1" />
           <input id="quotaRefreshInput" type="number" min="1" max="30" step="1" />
         </div>
+      </section>
+
+      <section class="field">
+        <label for="usageRangeSelect">展开态美元用量范围</label>
+        <select id="usageRangeSelect">
+          <option value="cycle_5h">当前 5h 周期</option>
+          <option value="cycle_7d">当前 7d 周期</option>
+          <option value="last_3h">最近 3 小时</option>
+          <option value="today">今天</option>
+          <option value="week">本周</option>
+        </select>
       </section>
 
       <footer>

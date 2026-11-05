@@ -1,37 +1,40 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, globalShortcut } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const { QuotaStore } = require("./quota-store");
+const { TokenDashboardClient, normalizeUsageRange } = require("./token-dashboard-client");
 const { COMPACT_LAYOUT } = require("../shared/compact-layout");
 
-const APP_ICON_PATH = path.join(__dirname, "../../assets/app-icon.png");
-const TRAY_ICON_PATH = path.join(__dirname, "../../assets/app-icon-tray-16.png");
+const APP_ICON_PATH = path.join(__dirname, "../../assets/codex-token-dashboard.ico");
+const TRAY_ICON_PATH = APP_ICON_PATH;
 const HIDDEN_WINDOW_RELEASE_MS = 60 * 1000;
 const SETTINGS_FILE_NAME = "widget-settings.json";
 const DEFAULT_SIGNAL_SETTINGS = {
-  recentFastBreathMs: 4000,
+  warningBreathMs: 4000,
   criticalBlinkMs: 3000,
-  quotaRefreshMs: 3 * 60 * 1000
+  quotaRefreshMs: 3 * 60 * 1000,
+  usageRange: "cycle_5h"
+};
+const DEFAULT_SHORTCUT_SETTINGS = {
+  toggleDashboard: null,
+  toggleFloatingWidget: null
 };
 
 let mainWindow;
+let dashboardWindow;
 let settingsWindow;
 let tray;
-let quotaStore;
+let dashboardClient;
 let releaseWindowTimer;
 let ipcHandlersRegistered = false;
 let isQuitting = false;
 let isAlwaysOnTop = true;
-let isCompactMode = true;
+const isCompactMode = true;
 let compactScale = 0.46;
 let isCompactExpanded = false;
 let isCompactTopStrip = false;
 let isCompactMousePassthrough = false;
 let signalSettings = { ...DEFAULT_SIGNAL_SETTINGS };
-
-const WINDOW_SIZES = {
-  full: { width: 390, height: 336 }
-};
+let shortcutSettings = { ...DEFAULT_SHORTCUT_SETTINGS };
 
 const COMPACT_HUD_COLLAPSED_BASE_SIZE = { width: COMPACT_LAYOUT.width, height: COMPACT_LAYOUT.hud.collapsedHeight };
 const COMPACT_HUD_EXPANDED_BASE_SIZE = { width: COMPACT_LAYOUT.width, height: COMPACT_LAYOUT.hud.expandedHeight };
@@ -50,7 +53,7 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
-  app.on("second-instance", showWindow);
+  app.on("second-instance", showApplication);
   app.whenReady().then(startApp);
 }
 
@@ -86,30 +89,37 @@ function compactMinimumSize(topStrip = isCompactTopStrip) {
 
 async function startApp() {
   if (process.platform === "win32") {
-    app.setAppUserModelId("cn.codex.quota.widget");
+    app.setAppUserModelId("cn.codex.token.dashboard");
   }
+  app.setName("Codex 用量监控");
 
   signalSettings = await loadSignalSettings();
-  quotaStore = new QuotaStore({
+  shortcutSettings = await loadShortcutSettings();
+  dashboardClient = new TokenDashboardClient({
     userDataPath: app.getPath("userData"),
-    visibleRefreshIntervalMs: signalSettings.quotaRefreshMs
+    visibleRefreshIntervalMs: signalSettings.quotaRefreshMs,
+    usageRange: signalSettings.usageRange,
+    appPath: app.getAppPath(),
+    resourcesPath: process.resourcesPath
   });
-  await quotaStore.loadCache();
-  quotaStore.on("state", (state) => sendToWindow("quota:changed", state));
+  await dashboardClient.loadCache();
+  dashboardClient.on("state", (state) => sendToWindow("dashboard:changed", state));
 
   registerIpcHandlers();
   createWindow();
   createTray();
-  quotaStore.refreshNow("startup").catch(() => {});
+  registerConfiguredShortcuts(shortcutSettings);
+  dashboardClient.refreshNow().catch(() => {});
+  showDashboardWindow().catch(reportDashboardError);
 
-  app.on("activate", showWindow);
+  app.on("activate", showApplication);
 }
 
 function createWindow() {
   const existingWindow = getLiveWindow();
   if (existingWindow) return existingWindow;
 
-  const initialSize = isCompactMode ? scaledCompactSize() : WINDOW_SIZES.full;
+  const initialSize = scaledCompactSize();
   const minCompactSize = compactMinimumSize();
   const window = new BrowserWindow({
     width: initialSize.width,
@@ -120,9 +130,9 @@ function createWindow() {
     transparent: true,
     resizable: false,
     alwaysOnTop: isAlwaysOnTop,
-    skipTaskbar: isCompactMode,
+    skipTaskbar: true,
     show: false,
-    backgroundColor: "#00000000",
+    backgroundColor: "#01000000",
     icon: APP_ICON_PATH,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -133,10 +143,10 @@ function createWindow() {
   });
 
   mainWindow = window;
-  window.setHasShadow(!isCompactMode);
+  window.setHasShadow(false);
 
   window.webContents.on("did-finish-load", () => {
-    window.webContents.send("quota:changed", quotaStore.getState());
+    window.webContents.send("dashboard:changed", dashboardClient.getState());
     window.webContents.send("window:alwaysOnTopChanged", isAlwaysOnTop);
     window.webContents.send("window:compactChanged", isCompactMode);
     window.webContents.send("window:compactScaleChanged", compactScale);
@@ -152,12 +162,12 @@ function createWindow() {
 
   window.on("show", () => {
     cancelWindowRelease();
-    quotaStore.setWindowVisible(true);
-    quotaStore.refreshNow("window-show").catch(() => {});
+    dashboardClient.setWindowVisible(true);
+    dashboardClient.refreshNow().catch(() => {});
   });
 
   window.on("hide", () => {
-    quotaStore.setWindowVisible(false);
+    dashboardClient.setWindowVisible(false);
     scheduleWindowRelease();
   });
 
@@ -171,14 +181,10 @@ function createWindow() {
 
 function placeWindow(window = getLiveWindow()) {
   if (!window) return;
-  if (isCompactMode) {
-    setCompactTopStrip(false);
-    isCompactExpanded = false;
-    resizeCompactWindow(window);
-    placeCompactWindowTopCenter(window);
-  } else {
-    placeWindowTopRight(window);
-  }
+  setCompactTopStrip(false);
+  isCompactExpanded = false;
+  resizeCompactWindow(window);
+  placeCompactWindowTopCenter(window);
 }
 
 function placeCompactWindowTopCenter(window = getLiveWindow()) {
@@ -211,26 +217,13 @@ function resizeCompactWindow(window = getLiveWindow(), expanded = isCompactExpan
   return size;
 }
 
-function placeWindowTopRight(window = getLiveWindow()) {
-  if (!window) return;
-  const display = screen.getPrimaryDisplay();
-  const { width, height } = window.getBounds();
-  const { workArea } = display;
-  window.setBounds({
-    x: workArea.x + workArea.width - width - 24,
-    y: workArea.y + 24,
-    width,
-    height
-  });
-}
-
 function createTray() {
   const icon = nativeImage.createFromPath(TRAY_ICON_PATH);
   if (icon.isEmpty()) {
     throw new Error(`Tray icon is missing or invalid: ${TRAY_ICON_PATH}`);
   }
   tray = new Tray(icon);
-  tray.setToolTip("Codex Quota Widget");
+  tray.setToolTip("Codex 用量监控");
   rebuildTrayMenu();
   tray.on("click", toggleWindow);
 }
@@ -245,7 +238,7 @@ function openSignalSettingsWindow() {
   const parent = getLiveWindow();
   settingsWindow = new BrowserWindow({
     width: 360,
-    height: 344,
+    height: 420,
     parent: parent || undefined,
     modal: false,
     resizable: false,
@@ -254,7 +247,7 @@ function openSignalSettingsWindow() {
     skipTaskbar: true,
     autoHideMenuBar: true,
     show: false,
-    title: "灯效设置",
+    title: "额度灯效与用量",
     backgroundColor: "#111418",
     icon: APP_ICON_PATH,
     webPreferences: {
@@ -277,15 +270,81 @@ function openSignalSettingsWindow() {
   return settingsWindow;
 }
 
+async function createDashboardWindow() {
+  const existing = getLiveDashboardWindow();
+  if (existing) return existing;
+  const target = await dashboardClient.openDashboard();
+  const window = new BrowserWindow({
+    width: 1360,
+    height: 900,
+    minWidth: 920,
+    minHeight: 640,
+    show: false,
+    autoHideMenuBar: true,
+    title: "Codex 用量监控",
+    backgroundColor: "#fcfcfd",
+    icon: APP_ICON_PATH,
+    webPreferences: {
+      preload: path.join(__dirname, "dashboard-preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  });
+  dashboardWindow = window;
+  const notifyDashboardActivated = () => {
+    if (window.isDestroyed() || window.webContents.isDestroyed()) return;
+    window.webContents.send("dashboard:activated");
+  };
+  window.once("ready-to-show", () => {
+    if (!window.isDestroyed()) window.show();
+  });
+  window.on("show", notifyDashboardActivated);
+  window.on("restore", notifyDashboardActivated);
+  window.on("focus", notifyDashboardActivated);
+  window.on("close", (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    window.hide();
+  });
+  window.on("closed", () => {
+    if (dashboardWindow === window) dashboardWindow = null;
+  });
+  await window.loadURL(target.url);
+  return window;
+}
+
+async function showDashboardWindow() {
+  const window = await createDashboardWindow();
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  return { ok: true };
+}
+
+async function toggleDashboardWindow() {
+  const window = getLiveDashboardWindow();
+  if (window?.isVisible()) {
+    window.hide();
+    return { ok: true, visible: false };
+  }
+  await showDashboardWindow();
+  return { ok: true, visible: true };
+}
+
 function rebuildTrayMenu() {
+  if (!tray || tray.isDestroyed()) return;
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "显示/隐藏", click: toggleWindow },
-      { label: "刷新额度", click: () => quotaStore.refreshNow("tray-manual").catch(() => {}) },
-      { label: "灯效设置...", click: openSignalSettingsWindow },
+      { label: "显示/隐藏悬浮窗", click: toggleWindow },
+      { label: "刷新额度", click: () => dashboardClient.refreshNow().catch(() => {}) },
+      { label: "显示/隐藏仪表盘", click: () => toggleDashboardWindow().catch(reportDashboardError) },
       {
-        label: isCompactMode ? "展开窗口" : "紧凑窗口",
-        click: () => setCompactMode(!isCompactMode)
+        label: "形态",
+        submenu: [
+          { label: "HUD 悬浮条", type: "radio", checked: !isCompactTopStrip, click: () => selectCompactDisplayMode("hud") },
+          { label: "顶部吸附条", type: "radio", checked: isCompactTopStrip, click: () => selectCompactDisplayMode("topStrip") }
+        ]
       },
       {
         label: isAlwaysOnTop ? "取消置顶" : "置顶",
@@ -301,8 +360,9 @@ function registerIpcHandlers() {
   if (ipcHandlersRegistered) return;
   ipcHandlersRegistered = true;
 
-  ipcMain.handle("quota:state", () => quotaStore.getState());
-  ipcMain.handle("quota:refresh", () => quotaStore.refreshNow("manual"));
+  ipcMain.handle("dashboard:state", () => dashboardClient.getState());
+  ipcMain.handle("dashboard:refresh", () => dashboardClient.refreshNow());
+  ipcMain.handle("dashboard:open", () => showDashboardWindow());
   ipcMain.handle("window:minimize", hideWindow);
   ipcMain.handle("window:close", quitApp);
   ipcMain.handle("window:alwaysOnTop:get", () => isAlwaysOnTop);
@@ -320,6 +380,8 @@ function registerIpcHandlers() {
   ipcMain.handle("signal:settings:get", () => signalSettings);
   ipcMain.handle("signal:settings:set", (_event, settings) => setSignalSettings(settings));
   ipcMain.handle("signal:settings:reset", () => setSignalSettings(DEFAULT_SIGNAL_SETTINGS));
+  ipcMain.handle("shortcuts:get", () => shortcutSettings);
+  ipcMain.handle("shortcuts:set", (_event, settings) => setShortcutSettings(settings));
 }
 
 async function loadSignalSettings() {
@@ -334,24 +396,41 @@ async function loadSignalSettings() {
   }
 }
 
+async function loadShortcutSettings() {
+  try {
+    const payload = JSON.parse(await fs.readFile(settingsPath(), "utf8"));
+    return normalizeShortcutSettings(payload?.shortcuts);
+  } catch (error) {
+    if (error?.code !== "ENOENT") console.warn(`Failed to read shortcut settings: ${error.message}`);
+    return { ...DEFAULT_SHORTCUT_SETTINGS };
+  }
+}
+
 function settingsPath() {
   return path.join(app.getPath("userData"), SETTINGS_FILE_NAME);
 }
 
 async function setSignalSettings(settings) {
   signalSettings = normalizeSignalSettings(settings);
-  quotaStore?.setVisibleRefreshIntervalMs(signalSettings.quotaRefreshMs);
+  dashboardClient?.setVisibleRefreshIntervalMs(signalSettings.quotaRefreshMs);
+  const usageRangeChanged = dashboardClient && dashboardClient.usageRange !== signalSettings.usageRange;
+  dashboardClient?.setUsageRange(signalSettings.usageRange);
   await saveSignalSettings();
   sendToWindow("signal:settingsChanged", signalSettings);
   sendToSettingsWindow("signal:settingsChanged", signalSettings);
+  if (usageRangeChanged) dashboardClient.refreshNow().catch(() => {});
   return signalSettings;
 }
 
 function normalizeSignalSettings(settings) {
   return {
-    recentFastBreathMs: clampSignalMs(settings?.recentFastBreathMs, DEFAULT_SIGNAL_SETTINGS.recentFastBreathMs),
+    warningBreathMs: clampSignalMs(
+      settings?.warningBreathMs,
+      DEFAULT_SIGNAL_SETTINGS.warningBreathMs
+    ),
     criticalBlinkMs: clampSignalMs(settings?.criticalBlinkMs, DEFAULT_SIGNAL_SETTINGS.criticalBlinkMs),
-    quotaRefreshMs: clampQuotaRefreshMs(settings?.quotaRefreshMs, DEFAULT_SIGNAL_SETTINGS.quotaRefreshMs)
+    quotaRefreshMs: clampQuotaRefreshMs(settings?.quotaRefreshMs, DEFAULT_SIGNAL_SETTINGS.quotaRefreshMs),
+    usageRange: normalizeUsageRange(settings?.usageRange)
   };
 }
 
@@ -370,11 +449,82 @@ function clampQuotaRefreshMs(value, fallback) {
 async function saveSignalSettings() {
   const filePath = settingsPath();
   const payload = {
-    version: 1,
-    signal: signalSettings
+    version: 3,
+    signal: signalSettings,
+    shortcuts: shortcutSettings
   };
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
+
+function normalizeShortcutSettings(settings) {
+  return {
+    toggleDashboard: normalizeAccelerator(settings?.toggleDashboard),
+    toggleFloatingWidget: normalizeAccelerator(settings?.toggleFloatingWidget)
+  };
+}
+
+function normalizeAccelerator(value) {
+  const accelerator = typeof value === "string" ? value.trim() : "";
+  return accelerator || null;
+}
+
+function validateShortcutSettings(settings) {
+  const values = Object.values(settings).filter(Boolean);
+  if (new Set(values).size !== values.length) return "两个功能不能使用同一个快捷键";
+  for (const accelerator of values) {
+    const parts = accelerator.split("+").map((part) => part.trim()).filter(Boolean);
+    const key = parts.at(-1) || "";
+    const hasModifier = parts.slice(0, -1).some((part) => ["Ctrl", "Alt", "Shift", "Super"].includes(part));
+    if (!hasModifier && !/^F(?:[1-9]|1[0-2])$/.test(key)) {
+      return `快捷键 ${accelerator} 需要 Ctrl、Alt、Shift 或 Win 修饰键`;
+    }
+  }
+  return "";
+}
+
+function unregisterShortcutMap(settings) {
+  Object.values(settings || {}).filter(Boolean).forEach((accelerator) => globalShortcut.unregister(accelerator));
+}
+
+function registerConfiguredShortcuts(settings) {
+  const actions = {
+    toggleDashboard: () => toggleDashboardWindow().catch(reportDashboardError),
+    toggleFloatingWidget: toggleWindow
+  };
+  const registered = [];
+  for (const [key, accelerator] of Object.entries(settings || {})) {
+    if (!accelerator) continue;
+    if (!globalShortcut.register(accelerator, actions[key])) {
+      registered.forEach((value) => globalShortcut.unregister(value));
+      return { ok: false, error: `快捷键 ${accelerator} 已被占用` };
+    }
+    registered.push(accelerator);
+  }
+  return { ok: true };
+}
+
+async function setShortcutSettings(settings) {
+  const normalized = normalizeShortcutSettings(settings);
+  const validationError = validateShortcutSettings(normalized);
+  if (validationError) return { ok: false, error: validationError, settings: shortcutSettings };
+  const previous = shortcutSettings;
+  unregisterShortcutMap(previous);
+  const result = registerConfiguredShortcuts(normalized);
+  if (!result.ok) {
+    registerConfiguredShortcuts(previous);
+    return { ...result, settings: previous };
+  }
+  shortcutSettings = normalized;
+  try {
+    await saveSignalSettings();
+  } catch (error) {
+    unregisterShortcutMap(normalized);
+    registerConfiguredShortcuts(previous);
+    shortcutSettings = previous;
+    throw error;
+  }
+  return { ok: true, settings: shortcutSettings };
 }
 
 function setAlwaysOnTop(value) {
@@ -387,29 +537,8 @@ function setAlwaysOnTop(value) {
 }
 
 function setCompactMode(value) {
-  isCompactMode = Boolean(value);
-  const window = getLiveWindow();
-  if (window) {
-    window.setHasShadow(!isCompactMode);
-    window.setSkipTaskbar(isCompactMode);
-    if (isCompactMode) {
-      setCompactTopStrip(false);
-      isCompactExpanded = false;
-      resizeCompactWindow(window, false);
-      placeCompactWindowTopCenter(window);
-    } else {
-      setCompactTopStrip(false);
-      isCompactExpanded = false;
-      setCompactMousePassthrough(false);
-      window.setMinimumSize(WINDOW_SIZES.full.width, WINDOW_SIZES.full.height);
-      window.setSize(WINDOW_SIZES.full.width, WINDOW_SIZES.full.height, false);
-      placeWindowTopRight(window);
-    }
-  }
-  sendToWindow("window:compactChanged", isCompactMode);
-  sendToWindow("window:compactScaleChanged", compactScale);
-  rebuildTrayMenu();
-  return isCompactMode;
+  // The merged widget intentionally has only the four compact states.
+  return true;
 }
 
 function setCompactScale(value) {
@@ -443,7 +572,31 @@ function setCompactTopStrip(value) {
   isCompactTopStrip = nextValue;
   if (!isCompactTopStrip) setCompactMousePassthrough(false);
   sendToWindow("window:compactDisplayModeChanged", compactDisplayMode());
+  rebuildTrayMenu();
   return isCompactTopStrip;
+}
+
+function selectCompactDisplayMode(mode) {
+  const window = getLiveWindow();
+  const topStrip = mode === "topStrip";
+  isCompactExpanded = false;
+  setCompactMousePassthrough(false);
+  setCompactTopStrip(topStrip);
+  if (window) {
+    resizeCompactWindow(window, false);
+    const display = screen.getPrimaryDisplay();
+    const { workArea } = display;
+    const { width, height } = window.getBounds();
+    window.setBounds({
+      x: workArea.x + Math.round((workArea.width - width) / 2),
+      y: workArea.y + (topStrip ? COMPACT_STRIP_TOP_OFFSET : COMPACT_TOP_OFFSET),
+      width,
+      height
+    });
+  }
+  sendToWindow("window:compactDisplayModeChanged", compactDisplayMode());
+  rebuildTrayMenu();
+  return compactDisplayMode();
 }
 
 function setCompactMousePassthrough(value) {
@@ -542,9 +695,16 @@ function toggleWindow() {
   }
 }
 
+function showApplication() {
+  showWindow();
+  showDashboardWindow().catch(reportDashboardError);
+}
+
 function showWindow() {
   const window = getLiveWindow();
   if (!window) {
+    dashboardClient?.setWindowVisible(true);
+    dashboardClient?.refreshNow().catch(() => {});
     createWindow();
     return;
   }
@@ -552,8 +712,8 @@ function showWindow() {
   cancelWindowRelease();
   if (!window.isVisible()) window.show();
   window.focus();
-  quotaStore?.setWindowVisible(true);
-  quotaStore?.refreshNow("window-show").catch(() => {});
+  dashboardClient?.setWindowVisible(true);
+  dashboardClient?.refreshNow().catch(() => {});
 }
 
 function hideWindow() {
@@ -582,8 +742,12 @@ function cancelWindowRelease() {
 function quitApp() {
   isQuitting = true;
   cancelWindowRelease();
-  quotaStore?.destroy();
+  dashboardClient?.destroy();
   app.quit();
+}
+
+function reportDashboardError(error) {
+  console.warn(`Token dashboard action failed: ${error?.message || error}`);
 }
 
 function getLiveWindow() {
@@ -597,6 +761,11 @@ function sendToWindow(channel, ...args) {
   window.webContents.send(channel, ...args);
 }
 
+function getLiveDashboardWindow() {
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) return dashboardWindow;
+  return null;
+}
+
 function sendToSettingsWindow(channel, ...args) {
   if (!settingsWindow || settingsWindow.isDestroyed() || settingsWindow.webContents.isDestroyed()) return;
   settingsWindow.webContents.send(channel, ...args);
@@ -605,7 +774,8 @@ function sendToSettingsWindow(channel, ...args) {
 app.on("before-quit", () => {
   isQuitting = true;
   cancelWindowRelease();
-  quotaStore?.destroy();
+  globalShortcut.unregisterAll();
+  dashboardClient?.destroy();
 });
 
 app.on("window-all-closed", (event) => {

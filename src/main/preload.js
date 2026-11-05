@@ -1,8 +1,9 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("codexQuota", {
-  getQuotaState: () => ipcRenderer.invoke("quota:state"),
-  refreshQuota: () => ipcRenderer.invoke("quota:refresh"),
+  getDashboardState: () => ipcRenderer.invoke("dashboard:state"),
+  refreshDashboard: () => ipcRenderer.invoke("dashboard:refresh"),
+  openDashboard: () => ipcRenderer.invoke("dashboard:open"),
   minimize: () => ipcRenderer.invoke("window:minimize"),
   close: () => ipcRenderer.invoke("window:close"),
   getAlwaysOnTop: () => ipcRenderer.invoke("window:alwaysOnTop:get"),
@@ -20,8 +21,8 @@ contextBridge.exposeInMainWorld("codexQuota", {
   getSignalSettings: () => ipcRenderer.invoke("signal:settings:get"),
   setSignalSettings: (settings) => ipcRenderer.invoke("signal:settings:set", settings),
   resetSignalSettings: () => ipcRenderer.invoke("signal:settings:reset"),
-  onQuotaChanged: (callback) => {
-    ipcRenderer.on("quota:changed", (_event, value) => callback(value));
+  onDashboardChanged: (callback) => {
+    ipcRenderer.on("dashboard:changed", (_event, value) => callback(value));
   },
   onAlwaysOnTopChanged: (callback) => {
     ipcRenderer.on("window:alwaysOnTopChanged", (_event, value) => callback(value));

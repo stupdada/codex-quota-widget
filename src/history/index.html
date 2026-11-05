@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>额度时间图</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="history-page">
+      <header class="history-header">
+        <div>
+          <h1>Codex 额度时间图</h1>
+          <p id="historyScope">读取本机历史样本...</p>
+        </div>
+        <div class="history-actions">
+          <fieldset class="series-controls" aria-label="选择显示的线">
+            <label><input id="togglePrimary" type="checkbox" checked />5h 实际</label>
+            <label><input id="toggleSecondary" type="checkbox" checked />7d 实际</label>
+            <label><input id="toggleIdeal" type="checkbox" checked />理想线</label>
+            <label><input id="toggleVelocity" type="checkbox" />近速需留</label>
+          </fieldset>
+          <button id="refreshHistoryBtn" type="button">刷新</button>
+        </div>
+      </header>
+
+      <section class="chart-shell" aria-label="额度历史图表">
+        <svg id="historyChart" role="img" aria-label="Codex 额度随时间变化图"></svg>
+        <div id="historyTooltip" class="history-tooltip" hidden>
+          <strong id="tooltipSeries">--</strong>
+          <span id="tooltipTime">--</span>
+          <span id="tooltipValue">--</span>
+        </div>
+        <div id="emptyState" class="empty-state" hidden>暂无历史样本。保持小组件运行一段时间后，这里会显示额度变化。</div>
+      </section>
+
+      <footer class="history-footer">
+        <span class="legend-item"><i class="legend-line primary"></i>5 小时窗口</span>
+        <span class="legend-item"><i class="legend-line secondary"></i>7 天窗口</span>
+        <span class="legend-item"><i class="legend-line ideal"></i>7 天理想线</span>
+        <span class="legend-item"><i class="legend-line velocity"></i>7 天近速需留</span>
+        <span class="legend-note">鼠标靠近可见线时显示该线的时间和数值。</span>
+      </footer>
+    </main>
+
+    <script src="../shared/quota-history-chart.js"></script>
+    <script src="./history.js"></script>
+  </body>
+</html>

@@ -1,0 +1,4 @@
+pyinstaller>=6.10,<7
+pywebview>=5.4,<7
+pywin32>=306
+cryptography>=42
