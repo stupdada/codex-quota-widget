@@ -1,90 +1,55 @@
 # Codex 用量监控
 
-Token Dashboard 与额度 LED 合并后的 Windows 桌面程序。仪表盘是主窗口，LED 是同一程序的悬浮窗；保留两种布局及各自的折叠/悬停展开态，共四种形态：
+在 Windows 上看 Codex 还剩多少额度、什么时候重置，以及哪些项目消耗最多。平时用置顶悬浮窗扫一眼，需要复盘时打开仪表盘看趋势和明细。
 
-- HUD 折叠态
-- HUD 悬停展开态
-- 顶部吸附条折叠态
-- 顶部吸附条悬停展开态
+**当前分支是 v0.3.2 开发版。** 它把原来的 Codex 额度小组件与 Token Dashboard 合进了同一个应用。可从本分支源码构建，新版功能以本页为准。[GitHub Releases（旧版 v0.2.3）](https://github.com/stupdada/codex-quota-widget/releases/tag/v0.2.3)
 
-LED 外壳改造自 [xicunwus2025-sys/codex-led-widget](https://github.com/xicunwus2025-sys/codex-led-widget)。数据、长期额度曲线和产品身份统一由 Token Dashboard 提供。
+![Codex 用量监控实机截图：7 天实际额度剩余、线性理想参考线、账户额度和顶部悬浮条](assets/screenshots/dashboard-quota-trend.png)
 
-## 显示规则
+*额度趋势实拍。红线是 7 天实际剩余，虚线是按时间均匀使用时的参考线。右侧是当前账户额度和重置倒计时。*
 
-- 彩色进度条：实际剩余额度。
-- 白色刻度：按窗口重置时间计算的线性理想剩余。
-- 差值：`实际剩余 - 线性理想剩余`。
-- 信号灯：只根据 5h / 7d 的剩余、理想差值、数据缺失和过期状态判断。
-- 美元：只在两个悬停展开态显示所选范围的总用量，不显示速度，也不会改变灯色。
+## 新版亮点
 
-已移除学习型近期速度、青色速度线及其相关建议。额度不足或明显低于理想线时使用黄色呼吸灯，接近耗尽时使用红色闪烁灯，服务不可用时明确显示灰色不可用/过期状态。
+- **按项目查用量。** 支持最近 3 小时、24 小时、今天、本周、当前 5 小时／7 天额度周期和自定义时段。可以按项目筛选，查看 Token、缓存命中率、活跃线程、活跃耗时和消耗排行。
+- **定位费用尖峰。** 在费用速率、Token 和额度三种趋势之间切换。费用速率支持峰值图和折线图，也可以设置每小时阈值，对照查看什么时候用量集中。
+- **回看额度消耗节奏。** 对照 5 小时、7 天的实际剩余和 7 天理想线；额度历史保存在本机，最长保留 180 天。右侧同时显示当前可读取的额度和重置倒计时。
+- **悬浮窗和仪表盘共用一套数据。** HUD 可以拖到屏幕顶部变为细条，两种布局都能悬停展开。彩条显示实际额度，白色刻度标记理想剩余；灯效提示额度偏紧或接近耗尽。点击展开按钮即可打开仪表盘。
+- **日常控制都在桌面上。** 托盘可控制悬浮窗的显示与置顶，支持调整刷新间隔和告警灯效。仪表盘和悬浮窗可以分别绑定全局快捷键，也可以手动启用一次性的「额度重置后退出 Codex」。
 
-## Token Dashboard 接入
+![Codex 用量监控实机截图：费用速率峰值图、每小时阈值线和主要消耗排行](assets/screenshots/dashboard-cost-rate.png)
 
-小组件从本机 Token Dashboard 获取统一数据：
+*费用速率实拍。蓝色峰值图用于定位用量集中时段，橙色横线是自设阈值。*
 
-```txt
-GET  /api/widget?usage_range=cycle_5h
-GET  /api/quota-history?start=...&end=...
-```
+## 怎么看这些数字
 
-服务发现顺序：
+- **额度百分比**来自本机可读取的 Codex 额度记录。某个周期暂时没有记录时，界面会显示「未读取」。
+- **费用和 Credits**由本机会话日志估算。费用是按 API 价格换算的美元等价，实际账单以账户为准。
+- **会话和历史**由本机后端处理。仪表盘和悬浮窗通过本机回环接口读取数据，额度历史存入本机 SQLite。
 
-1. `%USERPROFILE%\.codex\logs\token_speed_dashboard-agent.json`
-2. `127.0.0.1:8768` 到 `8772`
-3. 自动启动 Token Dashboard 后端
+## 构建并运行
 
-自动启动的可执行文件顺序：
-
-1. 环境变量 `CODEX_TOKEN_DASHBOARD_EXE`
-2. 安装包 `resources/backend/CodexTokenDashboard-Slim.exe`
-3. 本仓库内的 `backend/CodexTokenDashboard-Slim.exe`
-4. 开发态相邻 `TOKEN/output/CodexTokenDashboard-Slim.exe`
-
-后端源码在 `backend/source/`，长期额度记录由后端的本地 SQLite 存储负责。
-
-## 设置
-
-托盘菜单中的“灯效与用量设置”支持：
-
-- 额度告警呼吸周期
-- 接近耗尽闪烁周期
-- 额度刷新间隔
-- 展开态美元总用量范围：当前 5h 周期、当前 7d 周期、最近 3 小时、今天、本周
-
-HUD 上的展开按钮会打开或聚焦同一 Electron 程序内的 Token Dashboard 首页，不会再启动第二个可见程序。仪表盘“更多 → 快捷键”可设置全局“打开/关闭仪表盘”和“打开/关闭悬浮窗”，两项默认均为无。
-
-## 本地开发
-
-需要 Windows x64、Node.js 和 64 位 Python 3.11–3.13。首次运行先安装依赖并构建后端。
+需要 Windows x64、Node.js、64 位 Python 3.11–3.13，以及本机已安装、登录并使用过的 Codex。用 PowerShell 克隆开发分支：
 
 ```powershell
+git clone --branch dev/codex-token-dashboard https://github.com/stupdada/codex-quota-widget.git
+cd codex-quota-widget
 python -m pip install -r backend/source/requirements-desktop.txt
-npm install
+npm ci
+npm run build
+```
+
+双击生成的 `dist/CodexTokenDashboard.exe` 即可运行。便携包包含 Python 后端，应用会在需要时自动启动它。日常使用时，可以把悬浮窗拖到屏幕顶边，或到仪表盘「更多 → 快捷键」设置全局开关。
+
+### 本地开发
+
+```powershell
 npm test
 npm run build:backend
 npm run dev
 ```
 
-打包 Windows 便携版：
+桌面外壳和悬浮窗在 `src/`，Python 后端、仪表盘页面和后端测试在 `backend/source/`。
 
-```powershell
-npm run build
-```
+## 致谢与许可
 
-构建先用 PyInstaller 生成后端，再用 Electron Builder 打包为 `dist/CodexTokenDashboard.exe`。
-
-## 目录
-
-```txt
-backend/source/          # Python 后端、仪表盘前端、测试和打包配置
-scripts/                 # 额度状态与接口映射验证
-src/main/                # Electron 主进程、服务发现和额度纯函数
-src/renderer/            # 四态紧凑 LED
-src/settings/            # 灯效与美元范围设置
-src/shared/              # 紧凑布局常量
-```
-
-## License
-
-MIT
+额度悬浮窗源自 [xicunwus2025-sys/codex-led-widget](https://github.com/xicunwus2025-sys/codex-led-widget)。项目使用 MIT 许可。
