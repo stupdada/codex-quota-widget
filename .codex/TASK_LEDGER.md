@@ -115,6 +115,8 @@
 - 2026-06-12 17:05:19 +0800: 2026-06-12: User approved making the 5h->7d ratio dynamic. Keep 0.17 as prior; learn slowly from quota-history evidence with bounds and confidence; rebuild portable after validation.
 
 - 2026-06-12 18:41:47 +0800: 2026-06-12: User approved replacing 7d integer-tick velocity input with 5h-assisted fractional long-window curve. Continue on existing dirty task branch; preserve prior dynamic-ratio changes and build/runtime verification pattern.
+
+- 2026-11-11 12:38:56 +0800: v0.3.3: v0.3.2 cold start was traced on Windows. The bundled backend issued taskkill /T /F against its own portable launcher after its process filter skipped the localized Electron ancestor. Acceptance: focused regressions, portable build and healthy cold start, then publish the matching GitHub release.
 ## progress
 - Not started.
 
@@ -149,13 +151,18 @@
 - 2026-06-12 18:50:56 +0800: 2026-06-12: Implemented 5h-assisted fractional long-window velocity. Long-window recent and learned velocity now use raw 7d intervals for diagnostics/ratio learning but replace long burn with auxiliary 5h burn * dynamic shortToLongUsageRatio when same-interval 5h evidence exists. This makes unsupported 7d integer ticks produce rawBurnedPercent without moving the blue line; supported 5h usage moves the long velocity continuously as smoothedBurnedPercent.
 
 - 2026-06-12 20:56:28 +0800: 2026-06-12: Prepared v0.2.3 release. README now documents 5h-assisted fractional 7d velocity, package.json version bumped to 0.2.3, tests/build passed, and CodexQuota.exe was rebuilt for release.
+
+- 2026-11-11 12:45:26 +0800: Implemented and validated the v0.3.3 portable startup fix.
 ## decisions
 - No durable decisions recorded yet.
 
 - 2026-06-10 08:45:50 +0800: Kept Electron as the runtime; memory baseline remains Electron-bound while hidden-to-tray releases the renderer after 60s. Removed legacy quota:get/onRefresh IPC instead of keeping compatibility fallback. Accepted remaining guard checks for explicit loading/no-window states.
+
+- 2026-11-11 12:45:26 +0800: Read the full Windows process graph to protect the current launch chain. Keep the existing product-name filter on termination candidates.
 ## change-log
 - No changes recorded yet.
 
+- 2026-11-11 12:45:26 +0800: Updated backend process cleanup and its regression test. Bumped the package to 0.3.3 and updated the README download link.
 ## verify
 - Not run yet.
 
@@ -186,3 +193,5 @@
 - 2026-06-12 18:50:56 +0800: 2026-06-12: Passed node --check for changed JS files; npm.cmd test; git diff --check with CRLF warnings only; node scripts\\simulate-dynamic-velocity.js; fallback audit fractional-long-velocity pass-with-risk; npm.cmd run build; app.asar contains usageIntervalsForRole/longFractionalInterval/smoothedBurnedPercent; relaunched dist\\CodexQuota.exe SHA256 42AECC1CB54D20B19BCFE53A3E0531FB121938F7D143C9E10484BA3CA7D5ED2E; runtime cache refreshed with raw=9, auxiliary=52, smoothed=8.9, ratio=0.17, recent=100, combined=97.9.
 
 - 2026-06-12 20:56:28 +0800: 2026-06-12: Release validation passed: npm.cmd test; npm.cmd run build; git diff --check with CRLF warnings only; app.asar package version 0.2.3 and contains longFractionalInterval/smoothedBurnedPercent; dist\\CodexQuota.exe SHA256 C48824040C2C92B9A56F44214A40DEFCC8C89C3260A9D125372496DAC6039D17.
+
+- 2026-11-11 12:45:26 +0800: Launcher and local backend contract tests passed (17 tests), as did npm test. The x64 portable build cold-started without an existing backend and showed a responsive window, a healthy service and real quota data after 20 seconds.

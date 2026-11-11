@@ -70,20 +70,25 @@ def test_current_version_aoe_kills_legacy_product_processes(tmp_path: Path) -> N
     run.assert_called_once_with(open_initial_ui=False, mutex=22)
 
 
-def test_aoe_protects_pyinstaller_parent_and_child_processes() -> None:
-    current = launcher.os.getpid()
+def test_cleanup_protects_portable_launcher_through_localized_electron_process() -> None:
     processes = [
-        {"ProcessId": current - 1, "ParentProcessId": 4, "Name": "CodexTokenDashboard.exe"},
-        {"ProcessId": current, "ParentProcessId": current - 1, "Name": "CodexTokenDashboard.exe"},
-        {"ProcessId": current + 1, "ParentProcessId": current, "Name": "CodexTokenDashboard.exe"},
-        {"ProcessId": 99999, "ParentProcessId": 4, "Name": "CodexTokenDashboard(7).exe"},
+        {"ProcessId": 100, "ParentProcessId": 10, "Name": "CodexTokenDashboard.exe"},
+        {"ProcessId": 101, "ParentProcessId": 100, "Name": "Codex 用量监控.exe"},
+        {"ProcessId": 102, "ParentProcessId": 101, "Name": "CodexTokenDashboard-Slim.exe"},
+        {"ProcessId": 103, "ParentProcessId": 102, "Name": "CodexTokenDashboard-Slim.exe"},
+        {"ProcessId": 104, "ParentProcessId": 103, "Name": "CodexTokenDashboard-Slim.exe"},
+        {"ProcessId": 200, "ParentProcessId": 10, "Name": "CODEXTOKENDASHBOARD(7).EXE"},
+        {"ProcessId": 300, "ParentProcessId": 10, "Name": "notepad.exe"},
     ]
     completed = Mock(returncode=0)
-    with patch.object(launcher, "dashboard_processes", return_value=processes), patch.object(
+    with patch.object(launcher.os, "getpid", return_value=103), patch.object(
+        launcher, "windows_processes", return_value=processes
+    ), patch.object(
         launcher.subprocess, "run", return_value=completed
     ) as run:
-        assert launcher.kill_older_product_processes() == [99999]
-    assert run.call_args.args[0][2] == "99999"
+        assert launcher.kill_older_product_processes() == [200]
+    run.assert_called_once()
+    assert run.call_args.args[0] == ["taskkill.exe", "/PID", "200", "/T", "/F"]
 
 
 class _ExitedProcess:

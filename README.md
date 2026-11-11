@@ -2,7 +2,7 @@
 
 Codex 用量监控是一款统计 OpenAI Codex 本机会话的 Windows 桌面工具。悬浮窗可以一直挂在屏幕顶边，显示 5 小时和 7 天还剩多少额度，以及比匀速使用多剩或少剩多少。要查某个项目的花费，或看哪条线程用得最多，打开仪表盘按时段筛选即可。
 
-[下载 v0.3.2 Windows 便携版](https://github.com/stupdada/codex-quota-widget/releases/tag/v0.3.2)
+[下载 v0.3.3 Windows 便携版](https://github.com/stupdada/codex-quota-widget/releases/tag/v0.3.3)
 
 关键词：ChatGPT、ChatGPT Work、OpenAI Codex、Codex 额度、Token 用量。
 

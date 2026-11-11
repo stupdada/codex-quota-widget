@@ -263,12 +263,13 @@ def post_agent(path: str, payload: dict | None = None, timeout: float = 1.5) -> 
     return post_port(port, path, payload, timeout) if port is not None else None
 
 
-def dashboard_processes() -> list[dict]:
+def windows_processes() -> list[dict]:
     if os.name != "nt":
         return []
     script = (
-        "$p=Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'CodexTokenDashboard*.exe' };"
-        "$p | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath | ConvertTo-Json -Compress"
+        "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false);"
+        "Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,Name | "
+        "Select-Object ProcessId,ParentProcessId,Name | ConvertTo-Json -Compress"
     )
     try:
         completed = subprocess.run(
@@ -290,16 +291,17 @@ def dashboard_processes() -> list[dict]:
 
 def kill_older_product_processes() -> list[int]:
     killed: list[int] = []
-    processes = dashboard_processes()
+    # A portable launcher and its backend can have a localized Electron process between them.
+    processes = windows_processes()
     parents = {
         int(process.get("ProcessId", 0) or 0): int(process.get("ParentProcessId", 0) or 0)
         for process in processes
     }
     protected = {os.getpid()}
-    cursor = os.getpid()
-    while parents.get(cursor):
-        cursor = parents[cursor]
-        protected.add(cursor)
+    parent = parents.get(os.getpid())
+    while parent and parent not in protected:
+        protected.add(parent)
+        parent = parents.get(parent)
     descendants = {os.getpid()}
     changed = True
     while changed:
@@ -310,6 +312,9 @@ def kill_older_product_processes() -> list[int]:
                 protected.add(pid)
                 changed = True
     for process in processes:
+        name = str(process.get("Name") or "").casefold()
+        if not (name.startswith("codextokendashboard") and name.endswith(".exe")):
+            continue
         try:
             pid = int(process.get("ProcessId", 0))
         except (TypeError, ValueError):
