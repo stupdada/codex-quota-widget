@@ -28,6 +28,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from pricing_catalog import DAILY, MODEL_ALIASES, active_snapshot, catalog, with_pricing_snapshot
 from quota_reset_exit import QuotaResetExitController, close_codex_desktop
 from session_index import persistent_session_index
 
@@ -66,7 +67,7 @@ STATS_RESPONSE_CACHE: OrderedDict[tuple, tuple[float, dict]] = OrderedDict()
 API_STATS_CACHE_LOCK = threading.Lock()
 API_STATS_KEY_LOCKS: dict[tuple, threading.Lock] = {}
 API_STATS_RESPONSE_CACHE: OrderedDict[tuple, tuple[float, dict]] = OrderedDict()
-PERSISTED_STATS_CACHE_VERSION = 4
+PERSISTED_STATS_CACHE_VERSION = 5
 PERSISTED_STATS_CACHE_MAX_ENTRIES = 8
 PERSISTED_STATS_CACHE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 PERSISTED_STATS_CACHE_WRITE_INTERVAL_SECONDS = 60
@@ -75,9 +76,9 @@ LOCAL_METRICS_SCAN_INTERVAL_SECONDS = 30
 WIDGET_USAGE_RANGES = {"cycle_5h", "cycle_7d", "last_3h", "today", "week"}
 APP_ID = "codex-token-dashboard"
 API_VERSION = 2
-STATS_ENGINE_VERSION = 4
-BUILD_ID = "2026-10-09-sol-pricing-v25"
-PRODUCT_VERSION = 25
+STATS_ENGINE_VERSION = 5
+BUILD_ID = "2026-11-21-model-pricing-v26"
+PRODUCT_VERSION = 26
 STARTUP_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 STARTUP_VALUE_NAME = "CodexTokenDashboardSource"
 
@@ -141,157 +142,6 @@ def set_startup_enabled(enabled: bool) -> dict[str, object]:
         except FileNotFoundError:
             pass
     return startup_status()
-
-# Official OpenAI API text-token pricing, USD per 1M tokens.
-# Sol rates and Fast credits checked 2026-10-09:
-# https://developers.openai.com/api/docs/pricing
-# Credits: https://developers.openai.com/codex/pricing
-# Fast credits: https://learn.chatgpt.com/docs/agent-configuration/speed
-PRICING_PROFILES = {
-    "gpt-6.1-sol": {
-        "label": "GPT-6.1 Sol",
-        "input": 2.00,
-        "cached": 0.10,
-        "output": 10.00,
-        "credits_input": 50.0,
-        "credits_cached": 2.5,
-        "credits_output": 250.0,
-        "cache_write_multiplier": 1.25,
-        "fast_credit_multiplier": 2.0,
-    },
-    "gpt-6-sol": {
-        "label": "GPT-6 Sol",
-        "input": 2.00,
-        "cached": 0.20,
-        "output": 10.00,
-        "credits_input": 50.0,
-        "credits_cached": 5.0,
-        "credits_output": 250.0,
-        "cache_write_multiplier": 1.25,
-        "fast_credit_multiplier": 2.0,
-    },
-    "gpt-6-astra": {
-        "label": "GPT-6 Astra",
-        "input": 10.00,
-        "cached": 1.00,
-        "output": 50.00,
-        "credits_input": 250.0,
-        "credits_cached": 25.0,
-        "credits_output": 1_250.0,
-        "cache_write_multiplier": 1.25,
-        "fast_credit_multiplier": 2.0,
-    },
-    "gpt-5.6-sol": {
-        "label": "GPT-5.6 Sol",
-        "input": 4.00,
-        "cached": 0.40,
-        "output": 20.00,
-        "credits_input": 100.0,
-        "credits_cached": 10.0,
-        "credits_output": 500.0,
-        "cache_write_multiplier": 1.25,
-        "fast_credit_multiplier": 2.0,
-    },
-    "gpt-5.6-terra": {
-        "label": "GPT-5.6 Terra",
-        "input": 2.00,
-        "cached": 0.20,
-        "output": 12.00,
-        "credits_input": 50.0,
-        "credits_cached": 5.0,
-        "credits_output": 300.0,
-        "cache_write_multiplier": 1.25,
-        "fast_credit_multiplier": 2.0,
-    },
-    "gpt-5.6-luna": {
-        "label": "GPT-5.6 Luna",
-        "input": 0.20,
-        "cached": 0.02,
-        "output": 1.20,
-        "credits_input": 5.0,
-        "credits_cached": 0.5,
-        "credits_output": 30.0,
-        "cache_write_multiplier": 1.25,
-        "fast_credit_multiplier": 2.0,
-    },
-    "gpt-5.5": {
-        "label": "GPT-5.5 API",
-        "input": 5.00,
-        "cached": 0.50,
-        "output": 30.00,
-        "credits_input": 125.0,
-        "credits_cached": 12.5,
-        "credits_output": 750.0,
-        "cache_write_multiplier": 1.00,
-        "fast_credit_multiplier": 2.0,
-    },
-    "gpt-5.5-cyber": {
-        "label": "GPT-5.5 Cyber",
-        "input": None,
-        "cached": None,
-        "output": None,
-        "credits_input": 500.0,
-        "credits_cached": 50.0,
-        "credits_output": 3_000.0,
-        "cache_write_multiplier": 1.00,
-        "fast_credit_multiplier": None,
-    },
-    "gpt-5.4": {
-        "label": "GPT-5.4",
-        "input": 2.50,
-        "cached": 0.25,
-        "output": 15.00,
-        "credits_input": 62.5,
-        "credits_cached": 6.25,
-        "credits_output": 375.0,
-        "cache_write_multiplier": 1.00,
-        "fast_credit_multiplier": 2.0,
-    },
-    "gpt-5.4-mini": {
-        "label": "GPT-5.4 Mini",
-        "input": 0.75,
-        "cached": 0.075,
-        "output": 4.50,
-        "credits_input": 18.75,
-        "credits_cached": 1.875,
-        "credits_output": 113.0,
-        "cache_write_multiplier": 1.00,
-        "fast_credit_multiplier": None,
-    },
-    "gpt-5.3-codex": {
-        "label": "GPT-5.3 Codex",
-        "input": 1.75,
-        "cached": 0.175,
-        "output": 14.00,
-        "credits_input": 43.75,
-        "credits_cached": 4.375,
-        "credits_output": 350.0,
-        "cache_write_multiplier": 1.00,
-        "fast_credit_multiplier": None,
-    },
-    "gpt-5.2": {
-        "label": "GPT-5.2",
-        "input": 1.75,
-        "cached": 0.175,
-        "output": 14.00,
-        "credits_input": 43.75,
-        "credits_cached": 4.375,
-        "credits_output": 350.0,
-        "cache_write_multiplier": 1.00,
-        "fast_credit_multiplier": None,
-    },
-}
-
-MODEL_ALIASES = {
-    "gpt-5.6": "gpt-5.6-sol",
-    # The local approval reviewer is reported under an internal routing name.
-    # Per the dashboard policy, account it conservatively at the Sol rate.
-    "codex-auto-review": "gpt-5.6-sol",
-    "gpt-5.5-2026-04-23": "gpt-5.5",
-    "gpt-5.4-2026-03-05": "gpt-5.4",
-    "gpt-5.4-mini-2026-03-17": "gpt-5.4-mini",
-    "gpt-5.2-2025-12-11": "gpt-5.2",
-}
 
 PRECISION_RANK = {"exact": 0, "bounded": 1, "fallback": 2, "partial": 3}
 SUPPORTED_PRESETS = {
@@ -522,7 +372,7 @@ def pricing_profiles_for_api() -> list[dict]:
             "cache_write_multiplier": profile["cache_write_multiplier"],
             "fast_credit_multiplier": profile["fast_credit_multiplier"],
         }
-        for profile_id, profile in PRICING_PROFILES.items()
+        for profile_id, profile in active_snapshot().profiles.items()
     ]
 
 
@@ -547,14 +397,18 @@ def canonical_model(model: object) -> str | None:
     normalized = str(model or "").strip().lower()
     if not normalized:
         return None
-    normalized = MODEL_ALIASES.get(normalized, normalized)
-    return normalized if normalized in PRICING_PROFILES else None
+    profiles = active_snapshot().profiles
+    if normalized in profiles:
+        return normalized
+    alias = MODEL_ALIASES.get(normalized)
+    return alias if alias in profiles else None
 
 
 def merge_precision(left: str, right: str) -> str:
     return max((left, right), key=lambda value: PRECISION_RANK.get(value, 99))
 
 
+@with_pricing_snapshot
 def price_usage(
     usage: dict[str, int],
     model: str,
@@ -562,6 +416,7 @@ def price_usage(
     request_input: int | None = None,
     cache_write_known: bool | None = None,
     service_tier: str = "default",
+    timestamp: datetime | None = None,
 ) -> dict:
     result = zero_cost()
     original_model = str(model or "(unknown)")
@@ -576,7 +431,7 @@ def price_usage(
     if tier == "priority":
         tier = "default"
     result["service_tiers"] = [tier]
-    profile = PRICING_PROFILES.get(normalized or "")
+    profile = active_snapshot().profiles.get(normalized or "")
     if profile is None:
         result["complete"] = False
         result["credits_complete"] = False
@@ -585,7 +440,7 @@ def price_usage(
         result["unpriced_tokens"] = int(usage.get("total", 0))
         return result
 
-    recognized_tiers = {"default", "standard", "fast", "flex", "auto"}
+    recognized_tiers = {"default", "standard", "fast", "ultrafast", "flex", "auto"}
     if tier not in recognized_tiers:
         result["complete"] = False
         result["credits_complete"] = False
@@ -598,15 +453,15 @@ def price_usage(
     # response tier. Flex/auto therefore cannot be assigned an API dollar rate
     # without inventing the actually served tier. Credits still use the public
     # Codex token rate card unless the explicit Codex Fast mode applies.
-    api_rates_known = tier in {"default", "standard", "fast"} and all(
+    api_rates_known = tier in {"default", "standard", "fast", "ultrafast"} and all(
         profile.get(key) is not None for key in ("input", "cached", "output")
     )
     input_rate = float(profile["input"] or 0.0)
     cached_rate = float(profile["cached"] or 0.0)
     output_rate = float(profile["output"] or 0.0)
-    credits_input_rate = float(profile["credits_input"])
-    credits_cached_rate = float(profile["credits_cached"])
-    credits_output_rate = float(profile["credits_output"])
+    long_rates = profile.get("long_rates")
+    if long_rates and request_input is not None and request_input > profile["long_input_threshold"]:
+        input_rate, cached_rate, output_rate = long_rates
     multiplier = float(profile["cache_write_multiplier"])
     uncached_tokens = uncached(usage)
     token_cost = 0.0
@@ -639,21 +494,28 @@ def price_usage(
             result["cost_base"] = token_cost
             result["cost_max"] = token_cost
 
-    credits = (
-        uncached_tokens * credits_input_rate
-        + int(usage.get("cached", 0)) * credits_cached_rate
-        + int(usage.get("output", 0)) * credits_output_rate
-    ) / TOKENS_PER_MILLION
+    credit_rates = [profile[field] for field in ("credits_input", "credits_cached", "credits_output")]
+    credit_multiplier = 1.0
     if tier == "fast":
-        fast_multiplier = profile.get("fast_credit_multiplier")
-        if fast_multiplier is None:
-            result["credits_complete"] = False
-            result["pricing_precision"] = merge_precision(
-                result["pricing_precision"], "partial"
-            )
-        else:
-            credits *= float(fast_multiplier)
-    result["credits"] = credits
+        credit_multiplier = profile.get("fast_credit_multiplier")
+    elif tier == "ultrafast":
+        credit_multiplier = None
+        schedule = profile.get("ultrafast_credits")
+        if schedule:
+            before, effective, after = schedule
+            instant = (timestamp or local_now()).astimezone()
+            credit_multiplier = before if instant < datetime.fromisoformat(effective) else after
+    if credit_multiplier is None or any(rate is None for rate in credit_rates):
+        result["credits_complete"] = False
+        result["pricing_precision"] = "partial"
+        result["unpriced_models"].append(f"{display_model} (Credits)")
+        result["unpriced_tokens"] = int(usage.get("total", 0))
+    else:
+        result["credits"] = (
+            uncached_tokens * credit_rates[0]
+            + int(usage.get("cached", 0)) * credit_rates[1]
+            + int(usage.get("output", 0)) * credit_rates[2]
+        ) * credit_multiplier / TOKENS_PER_MILLION
     return result
 
 
@@ -2129,6 +1991,7 @@ def analyze_session_range(session: dict, start: datetime, end: datetime) -> dict
                 ),
                 cache_write_known=metadata.get("cache_write_known"),
                 service_tier=str(metadata.get("service_tier") or "default"),
+                timestamp=timestamp,
             )
             if event_diagnostics["fallback_events"]:
                 priced["pricing_precision"] = merge_precision(
@@ -2231,6 +2094,7 @@ def build_series(
                     ),
                     cache_write_known=metadata.get("cache_write_known"),
                     service_tier=str(metadata.get("service_tier") or "default"),
+                    timestamp=timestamp,
                 )
                 if event_diagnostics["fallback_events"]:
                     priced["pricing_precision"] = merge_precision(
@@ -3031,6 +2895,8 @@ def _make_stats_unlocked(
     stats["pricing"] = {
         "mode": "auto",
         "profiles": pricing_profiles_for_api(),
+        "labels": active_snapshot().labels,
+        "revision": active_snapshot().revision,
         "models_used": stats["summary"]["models_used"],
         "unpriced_models": stats["summary"]["unpriced_models"],
         "complete": stats["summary"]["cost_complete"],
@@ -3040,6 +2906,7 @@ def _make_stats_unlocked(
     return stats
 
 
+@with_pricing_snapshot
 def make_stats(
     sessions_root: Path | list[Path] | tuple[Path, ...],
     preset: str,
@@ -3120,6 +2987,7 @@ def stats_cache_key(
         float(scan_hours),
         project_filter.strip(),
         (str(bucket_value).strip().lower() if bucket_value is not None else ""),
+        active_snapshot().revision,
     )
 
 
@@ -3259,9 +3127,9 @@ def restore_periodic_stats_refresh_target(server: ThreadingHTTPServer) -> bool:
         cache_key = json.loads(encoded_key)
     except (TypeError, json.JSONDecodeError):
         return False
-    if not isinstance(cache_key, list) or len(cache_key) != 7:
+    if not isinstance(cache_key, list) or len(cache_key) != 8:
         return False
-    _roots, preset, start_value, end_value, _scan_hours, project_filter, bucket_value = cache_key
+    _roots, preset, start_value, end_value, _scan_hours, project_filter, bucket_value, _revision = cache_key
     set_periodic_stats_refresh_target(
         server,
         str(preset or "last_3h"),
@@ -3637,6 +3505,7 @@ def record_quota_history(
         )
 
 
+@with_pricing_snapshot
 def make_api_stats(
     server: ThreadingHTTPServer,
     preset: str,
@@ -3791,6 +3660,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
             self.send_json(health_payload())
+            return
+        if parsed.path == "/api/model-pricing":
+            self.send_json(catalog.settings())
             return
         if parsed.path == "/api/app/startup":
             self.send_json(startup_status())
@@ -3997,6 +3869,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         try:
+            if parsed.path == "/api/model-pricing":
+                host = self.headers.get("Host", "")
+                origin = self.headers.get("Origin")
+                if (
+                    self.client_address[0] not in {"127.0.0.1", "::1"}
+                    or urlparse(f"//{host}").hostname not in {"localhost", "127.0.0.1", "::1"}
+                    or (origin and origin != f"http://{host}")
+                    or self.headers.get_content_type() != "application/json"
+                ):
+                    self.send_json({"ok": False, "error": "请在本机仪表盘修改价表"}, status=403)
+                    return
+                if not 0 < int(self.headers.get("Content-Length", "0")) <= 16_384:
+                    raise ValueError("价表请求大小无效")
             length = min(
                 16_384, max(0, int(self.headers.get("Content-Length", "0")))
             )
@@ -4005,6 +3890,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
             )
             if not isinstance(payload, dict):
                 raise ValueError("请求体必须是 JSON 对象")
+            if parsed.path == "/api/model-pricing":
+                action = payload.get("action")
+                if action == "sync":
+                    catalog.refresh(force=True)
+                elif action in {"save", "reset"} and isinstance(payload.get("model"), str):
+                    catalog.edit(
+                        payload["model"],
+                        payload if action == "save" else {},
+                        keep_label=action == "reset",
+                    )
+                else:
+                    raise ValueError("价表操作或模型 ID 无效")
+                self.send_json(catalog.settings())
+                return
             if parsed.path == "/api/app/ping":
                 self.send_json({"ok": True})
                 return
@@ -4135,6 +4034,7 @@ def run_server(
     server.sessions_roots = normalize_session_roots(roots)
     server.sessions_root = server.sessions_roots[0]
     server.scan_hours = args.scan_hours
+    catalog.load()
     initialize_persisted_stats_cache(server)
     server.periodic_stats_refresh_lock = threading.Lock()
     server.periodic_stats_refresh_target = None
@@ -4182,6 +4082,12 @@ def run_server(
         name="codex-dashboard-periodic-refresh",
     )
     server.periodic_stats_refresh_thread.start()  # type: ignore[attr-defined]
+    threading.Thread(
+        target=sync_official_pricing,
+        args=(server.periodic_stats_refresh_stop_event,),
+        daemon=True,
+        name="codex-dashboard-pricing-sync",
+    ).start()
     try:
         if on_server is not None:
             on_server(server)
@@ -4199,6 +4105,16 @@ def run_server(
         server.quota_reset_exit.stop()
         server.local_metrics.close()
         server.server_close()
+
+
+def sync_official_pricing(stop: threading.Event) -> None:
+    while not stop.is_set():
+        try:
+            catalog.refresh()
+        except OSError as exc:
+            sys.stderr.write(f"pricing update storage failure: {type(exc).__name__}\n")
+        if stop.wait(DAILY):
+            return
 
 
 def main(
@@ -4228,6 +4144,7 @@ def main(
     args.sessions_roots = discover_session_roots(args.sessions_root)
     args.sessions_root = args.sessions_roots[0]
     if args.once:
+        catalog.load()
         stats = make_stats(
             args.sessions_roots,
             args.preset,

@@ -2,7 +2,7 @@
 
 Codex 用量监控是一款统计 OpenAI Codex 本机会话的 Windows 桌面工具。悬浮窗可以一直挂在屏幕顶边，显示 5 小时和 7 天还剩多少额度，以及比匀速使用多剩或少剩多少。要查某个项目的花费，或看哪条线程用得最多，打开仪表盘按时段筛选即可。
 
-[下载 v0.3.3 Windows 便携版](https://github.com/stupdada/codex-quota-widget/releases/tag/v0.3.3)
+[下载最新 Windows 便携版](https://github.com/stupdada/codex-quota-widget/releases/latest)
 
 关键词：ChatGPT、ChatGPT Work、OpenAI Codex、Codex 额度、Token 用量。
 
@@ -56,6 +56,13 @@ Codex 用量监控是一款统计 OpenAI Codex 本机会话的 Windows 桌面工
 1. 从 [Releases](https://github.com/stupdada/codex-quota-widget/releases) 下载 `CodexTokenDashboard.exe`。需要 Windows x64 和本机已安装、登录并使用过的 Codex。
 2. 双击运行。便携版自带本机统计后端。可把 HUD 拖到屏幕顶边，或在仪表盘「更多 → 快捷键」设置全局开关。
 3. 在仪表盘选择 5h 周期、7d 周期或自定义时段，再按项目筛选。额度栏显示「未读取」时，表示本机暂时缺少对应周期的额度观测。
+
+## 模型与计价
+
+v0.3.4 内置 GPT-6.2 Astra、GPT-6.2 Sol、GPT-6.1 Terra 和 GPT-6 Luna 的费率。
+仪表盘会从会话日志识别新模型，并定期读取公开的官方 API 和 Codex Credits 价表。
+在「更多 → 模型与计价」可立即同步、为待定价模型填写每百万 Token 的费率，或修改显示名。
+手填费率保存在本机，历史用量会按当前价表重新估值。
 
 会话统计和额度历史在本机处理。当前便携版没有代码签名，Windows 可能显示未知发布者。
 

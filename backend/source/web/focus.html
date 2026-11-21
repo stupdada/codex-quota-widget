@@ -104,6 +104,9 @@
     <button id="signalSettingsButton" class="settings-entry" type="button" aria-haspopup="dialog" aria-controls="signalSettingsDialog">
       <span><strong>灯效与用量</strong><small>额度灯效、刷新与美元范围</small></span><b>设置</b>
     </button>
+    <button id="pricingSettingsButton" class="settings-entry" type="button" aria-haspopup="dialog" aria-controls="pricingSettingsDialog">
+      <span><strong>模型与计价</strong><small>官方价表与自定义费率</small></span><b>设置</b>
+    </button>
     <div class="settings-row">
       <label for="numberMode">数字显示<select id="numberMode"><option value="compact">万 / 亿</option><option value="full">完整数字</option></select></label>
       <label for="bucketMode">趋势粒度<select id="bucketMode"><option value="auto">自动</option><option value="1">1 分钟</option><option value="2">2 分钟</option><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="15">15 分钟</option><option value="30">30 分钟</option><option value="60">1 小时</option></select></label>
@@ -209,6 +212,49 @@
       <button id="cancelSignalSettings" type="button" class="quiet-action">取消</button>
       <button id="saveSignalSettings" type="button" class="primary-action">保存</button>
     </div>
+  </dialog>
+
+  <dialog id="pricingSettingsDialog" class="shortcut-dialog pricing-settings-dialog" aria-labelledby="pricingSettingsTitle">
+    <div class="shortcut-dialog-heading">
+      <div><strong id="pricingSettingsTitle">模型与计价</strong><span>费率单位为每百万 Token</span></div>
+      <button id="closePricingSettings" class="close-panel" type="button" aria-label="关闭模型与计价">×</button>
+    </div>
+    <div class="pricing-sync">
+      <p id="pricingSyncStatus" role="status"></p>
+      <button id="syncPricing" type="button" class="quiet-action">同步官方价格</button>
+    </div>
+    <form id="pricingSettingsForm">
+      <fieldset id="pricingModelFields">
+        <label id="pricingPendingRow" hidden>待定价模型<select id="pricingPending"></select></label>
+        <div class="pricing-fields">
+          <label>日志模型 ID<input id="pricingModel" list="pricingModels" maxlength="160" required autocomplete="off" spellcheck="false" placeholder="gpt-6.2-sol"></label>
+          <datalist id="pricingModels"></datalist>
+          <label>自定义显示名<input id="pricingModelLabel" name="label" maxlength="120" autocomplete="off"></label>
+        </div>
+        <p class="shortcut-help">留空整组可沿用官方价，填写时请填完一组的三个价格。</p>
+        <fieldset class="pricing-group">
+          <legend>API USD</legend>
+          <div class="pricing-fields">
+            <label>普通输入<input name="input" type="number" min="0" max="1000000" step="any"></label>
+            <label>缓存输入<input name="cached" type="number" min="0" max="1000000" step="any"></label>
+            <label>输出<input name="output" type="number" min="0" max="1000000" step="any"></label>
+          </div>
+        </fieldset>
+        <fieldset class="pricing-group">
+          <legend>Codex Credits</legend>
+          <div class="pricing-fields">
+            <label>普通输入<input name="credits_input" type="number" min="0" max="1000000" step="any"></label>
+            <label>缓存输入<input name="credits_cached" type="number" min="0" max="1000000" step="any"></label>
+            <label>输出<input name="credits_output" type="number" min="0" max="1000000" step="any"></label>
+          </div>
+        </fieldset>
+      </fieldset>
+      <p id="pricingSettingsError" class="field-error" role="alert"></p>
+      <div class="panel-actions pricing-actions">
+        <button id="resetPricing" type="button" class="quiet-action">恢复官方价</button>
+        <button id="savePricing" type="submit" class="primary-action">保存</button>
+      </div>
+    </form>
   </dialog>
 
   <main>

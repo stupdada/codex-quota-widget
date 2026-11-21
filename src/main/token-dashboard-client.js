@@ -9,7 +9,7 @@ const { deriveQuotaSignal, normalizeCycle } = require("./quota-signal");
 
 const DEFAULT_PORTS = Object.freeze([8768, 8769, 8770, 8771, 8772]);
 const DEFAULT_USAGE_RANGE = "cycle_5h";
-const MIN_BACKEND_PRODUCT_VERSION = 15;
+const MIN_BACKEND_PRODUCT_VERSION = 26;
 const USAGE_RANGES = new Set(["cycle_5h", "cycle_7d", "last_3h", "today", "week"]);
 const RANGE_LABELS = Object.freeze({
   cycle_5h: "5h",

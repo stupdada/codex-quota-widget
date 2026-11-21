@@ -1681,7 +1681,8 @@
     const models = Array.isArray(row.models_used) && row.models_used.length
       ? row.models_used
       : [row.model].filter(Boolean)
-    return models.join(' + ') || '模型未知'
+    const labels = runtime.lastGoodData?.pricing?.labels || {}
+    return models.map((model) => Object.hasOwn(labels, model) ? labels[model] : model).join(' + ') || '模型未知'
   }
 
   function rowPresentation(row, kind, index, summaryBounds) {
@@ -1809,7 +1810,7 @@
       ? `：${row.unpriced_models.map((value) => String(value).replace(/\s*\(API USD\)\s*$/, '')).join(' + ')}`
       : ''
     if (coverage.scope === 'api_only') {
-      return `其中 ${affected} 无法确定 API 美元费率${models}；本地日志只记录请求层级，未记录服务端实际采用的 service_tier；Codex Credits 已完整计算。`
+      return `其中 ${affected} 的 API 美元费率待确认${models}。Codex Credits 已完整计算。`
     }
     if (coverage.scope === 'credits_only') {
       return `其中 ${affected} 缺少可验证的 Credits 定价${models}；API 美元估值仍完整。`
@@ -2658,7 +2659,114 @@
     $(inputId).addEventListener('input', () => { $(rangeId).value = $(inputId).value })
   }
 
+  let pricingSettings = null
+  let pricingBusy = false
+  const pricingFields = ['input', 'cached', 'output', 'credits_input', 'credits_cached', 'credits_output']
+
+  function pricingEntry(collection, id) {
+    return Object.hasOwn(collection, id) ? collection[id] : {}
+  }
+
+  function fillPricingModel(keepDraft = false) {
+    const model = $('pricingModel').value.trim().toLowerCase()
+    const { manual, profiles, labels } = pricingSettings
+    const pending = $('pricingPending')
+    pending.value = Array.from(pending.options).some((option) => option.value === model) ? model : ''
+    const override = pricingEntry(manual, model)
+    const profile = pricingEntry(profiles, model)
+    const label = $('pricingModelLabel')
+    label.placeholder = Object.hasOwn(labels, model) ? labels[model] : model
+    if (!keepDraft) label.value = override.label ?? ''
+    for (const field of pricingFields) {
+      const input = $('pricingSettingsForm').elements.namedItem(field)
+      input.placeholder = profile[field] ?? '待定价'
+      if (!keepDraft) input.value = override[field] ?? ''
+    }
+    $('resetPricing').disabled = pricingBusy || !pricingFields.some((field) => Object.hasOwn(override, field))
+  }
+
+  function renderPricingSettings(keepDraft = false) {
+    const { profiles, labels, manual, synced, errors } = pricingSettings
+    const seen = runtime.lastGoodData?.pricing?.models_used || []
+    const option = (id) => {
+      const label = Object.hasOwn(labels, id) ? `${labels[id]} · ${id}` : id
+      const node = create('option', '', label)
+      node.value = id
+      return node
+    }
+    const ids = [...new Set([...seen, ...Object.keys(profiles), ...Object.keys(labels), ...Object.keys(manual)])].sort()
+    $('pricingModels').replaceChildren(...ids.map(option))
+    const pending = seen.filter((id) => {
+      const rates = pricingEntry(profiles, id)
+      return pricingFields.some((field) => rates[field] == null)
+    }).filter((id) => id !== '(unknown)')
+    const select = $('pricingPending')
+    const first = create('option', '', '选择当前时段的待定价模型')
+    first.value = ''
+    select.replaceChildren(first, ...pending.map(option))
+    $('pricingPendingRow').hidden = !pending.length
+    if (!keepDraft && !$('pricingModel').value && pending.length) $('pricingModel').value = pending[0]
+    const status = Object.keys(errors).length
+      ? ['api', 'credits', 'local'].filter((key) => errors[key]).map((key) => {
+        const label = { api: 'API USD', credits: 'Credits', local: '本地价表' }[key]
+        return `${label} · ${errors[key]}`
+      }).join('；')
+      : Object.keys(synced).length
+        ? `最近同步 ${new Date(Math.max(...Object.values(synced)) * 1000).toLocaleString()}`
+        : '使用内置价表'
+    $('pricingSyncStatus').textContent = status
+    fillPricingModel(keepDraft)
+  }
+
+  async function updatePricingSettings(action = '', fields = {}) {
+    if (pricingBusy) return
+    pricingBusy = true
+    $('pricingModelFields').disabled = true
+    $('syncPricing').disabled = true
+    $('savePricing').disabled = true
+    $('resetPricing').disabled = true
+    $('pricingSettingsError').textContent = ''
+    if (action === 'sync') $('pricingSyncStatus').textContent = '正在读取官方价表…'
+    try {
+      const response = await fetch('/api/model-pricing', action ? {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, model: $('pricingModel').value, ...fields }),
+      } : {})
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || '价表暂不可用')
+      pricingSettings = data
+      renderPricingSettings(action === 'sync')
+      if (action) {
+        cancelPrefetch()
+        runtime.rangeCache.clear()
+        runtime.prefetchAttempted.clear()
+        void load()
+      }
+    } catch (error) {
+      $('pricingSettingsError').textContent = error.message
+      if (action === 'sync') $('pricingSyncStatus').textContent = '官方价表同步未完成'
+    } finally {
+      pricingBusy = false
+      $('pricingModelFields').disabled = !pricingSettings
+      $('savePricing').disabled = !pricingSettings
+      $('syncPricing').disabled = false
+      if (pricingSettings) fillPricingModel(true)
+    }
+  }
+
+  function openPricingSettings() {
+    const dialog = $('pricingSettingsDialog')
+    $('pricingSyncStatus').textContent = '正在读取价表…'
+    dialog.showModal()
+    void updatePricingSettings()
+  }
+
   function dismissTopLayer() {
+    if ($('pricingSettingsDialog').open) {
+      $('pricingSettingsDialog').close()
+      return true
+    }
     if ($('signalSettingsDialog').open) {
       closeSignalSettingsDialog()
       return true
@@ -2791,6 +2899,26 @@
     bindSignalSettingPair('signalWarningBreathRange', 'signalWarningBreathInput')
     bindSignalSettingPair('signalCriticalBlinkRange', 'signalCriticalBlinkInput')
     bindSignalSettingPair('signalQuotaRefreshRange', 'signalQuotaRefreshInput')
+    $('pricingSettingsButton').addEventListener('click', openPricingSettings)
+    $('closePricingSettings').addEventListener('click', () => $('pricingSettingsDialog').close())
+    $('syncPricing').addEventListener('click', () => updatePricingSettings('sync'))
+    $('resetPricing').addEventListener('click', () => updatePricingSettings('reset'))
+    $('pricingModel').addEventListener('input', () => {
+      if (pricingSettings) fillPricingModel()
+    })
+    $('pricingPending').addEventListener('change', () => {
+      $('pricingModel').value = $('pricingPending').value
+      fillPricingModel()
+    })
+    $('pricingSettingsForm').addEventListener('submit', (event) => {
+      event.preventDefault()
+      const fields = { label: $('pricingModelLabel').value }
+      for (const field of pricingFields) {
+        const input = event.currentTarget.elements.namedItem(field)
+        fields[field] = input.value === '' ? null : input.valueAsNumber
+      }
+      void updatePricingSettings('save', fields)
+    })
     $('startupEnabled').addEventListener('change', setStartupEnabled)
     $('armResetFive').addEventListener('click', () => armResetExit('five_hour'))
     $('armResetWeekly').addEventListener('click', () => armResetExit('weekly'))

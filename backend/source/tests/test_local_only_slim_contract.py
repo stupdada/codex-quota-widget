@@ -169,11 +169,11 @@ def test_slim_build_has_a_new_matching_product_identity() -> None:
         ROOT / "launch_token_speed_dashboard.py"
     ).read_text(encoding="utf-8")
 
-    assert dashboard.BUILD_ID == "2026-10-09-sol-pricing-v25"
-    assert dashboard.STATS_ENGINE_VERSION == 4
-    assert dashboard.PRODUCT_VERSION == 25
-    assert "EXPECTED_STATS_ENGINE_VERSION = 4" in launcher_source
-    assert "PRODUCT_VERSION = 25" in launcher_source
+    assert dashboard.BUILD_ID == "2026-11-21-model-pricing-v26"
+    assert dashboard.STATS_ENGINE_VERSION == 5
+    assert dashboard.PRODUCT_VERSION == 26
+    assert "EXPECTED_STATS_ENGINE_VERSION = 5" in launcher_source
+    assert "PRODUCT_VERSION = 26" in launcher_source
 
 
 def test_focus_more_panel_exposes_one_shot_reset_exit_controls() -> None:
