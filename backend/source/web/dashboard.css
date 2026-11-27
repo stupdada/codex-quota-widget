@@ -1544,6 +1544,12 @@ select,
   white-space: nowrap;
 }
 
+[data-row-key^="thread:"] .editorial-title,
+[data-row-key^="activity:"] .editorial-meta {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .editorial-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1670,6 +1676,7 @@ select,
 
 .detail-header h3 {
   margin: 0;
+  overflow-wrap: anywhere;
   font-family: var(--font-display);
   font-size: 26px;
   font-weight: 590;
@@ -1768,6 +1775,7 @@ select,
 
 .lineage-title {
   font-weight: 620;
+  overflow-wrap: anywhere;
 }
 
 .lineage-meta {

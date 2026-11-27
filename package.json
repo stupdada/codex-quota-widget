@@ -1,6 +1,6 @@
 {
   "name": "codex-token-dashboard",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Codex Token dashboard with an integrated LED quota widget for Windows.",
   "main": "src/main/main.js",
   "author": "Codex Quota Widget Contributors",

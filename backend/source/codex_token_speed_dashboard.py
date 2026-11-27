@@ -77,8 +77,8 @@ WIDGET_USAGE_RANGES = {"cycle_5h", "cycle_7d", "last_3h", "today", "week"}
 APP_ID = "codex-token-dashboard"
 API_VERSION = 2
 STATS_ENGINE_VERSION = 5
-BUILD_ID = "2026-11-21-model-pricing-v26"
-PRODUCT_VERSION = 26
+BUILD_ID = "2026-11-27-thread-names-v27"
+PRODUCT_VERSION = 27
 STARTUP_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 STARTUP_VALUE_NAME = "CodexTokenDashboardSource"
 
@@ -562,6 +562,46 @@ def project_name(cwd: str) -> str:
 
 def short_thread(thread_id: str) -> str:
     return thread_id[:8] if thread_id else "(unknown)"
+
+
+def attach_thread_names(stats: dict, sessions_roots: list[Path]) -> None:
+    threads = stats.get("thread_top", [])
+    rows = [*threads, *stats.get("latest", [])]
+    rows.extend(member for thread in threads for member in thread.get("members", []))
+    missing_ids = {row["thread_id"] for row in rows if row.get("thread_id")}
+    names: dict[str, str] = {}
+    index_paths = dict.fromkeys(root.parent / "session_index.jsonl" for root in sessions_roots)
+    for index_path in index_paths:
+        if not missing_ids:
+            break
+        matches: dict[str, str] = {}
+        try:
+            with index_path.open("rb") as index:
+                for line in index:
+                    try:
+                        entry = json.loads(line)
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        continue
+                    if not isinstance(entry, dict):
+                        continue
+                    thread_id = entry.get("id")
+                    name = entry.get("thread_name")
+                    if (
+                        isinstance(thread_id, str)
+                        and thread_id in missing_ids
+                        and isinstance(name, str)
+                    ):
+                        matches[thread_id] = name.strip()
+        except OSError:
+            continue
+        matches = {thread_id: name for thread_id, name in matches.items() if name}
+        names.update(matches)
+        missing_ids.difference_update(matches)
+
+    for row in rows:
+        name = names.get(row.get("thread_id"))
+        if name:
+            row["thread_name"] = name
 
 
 def is_archived_path(path: Path) -> bool:
@@ -3777,6 +3817,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
         if parsed.path in {"/api/stats", "/api/stats-cache"}:
             request_id = uuid.uuid4().hex
+            roots = getattr(self.server, "sessions_roots", [self.server.sessions_root])
             query = parse_qs(parsed.query)
             preset = query.get("preset", ["last_3h"])[0].strip()
             start_value = query.get("start", [None])[0]
@@ -3805,7 +3846,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         bucket_value,
                     )
                 if parsed.path == "/api/stats-cache":
-                    roots = getattr(self.server, "sessions_roots", [self.server.sessions_root])
                     cache_key = stats_cache_key(
                         roots,
                         preset,
@@ -3833,6 +3873,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         bucket_value,
                         force_refresh=force_refresh,
                     )
+                attach_thread_names(stats, roots)
             except StatsRequestError as exc:
                 self.send_json(
                     {

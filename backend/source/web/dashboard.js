@@ -1685,6 +1685,10 @@
     return models.map((model) => Object.hasOwn(labels, model) ? labels[model] : model).join(' + ') || '模型未知'
   }
 
+  function threadLabel(row) {
+    return row.thread_name || row.short_thread || '未知线程'
+  }
+
   function rowPresentation(row, kind, index, summaryBounds) {
     const bounds = core.costBounds(row)
     const shareInfo = core.costShare(bounds, summaryBounds)
@@ -1707,7 +1711,7 @@
         : '单线程任务'
       return {
         key: `thread:${row.thread_id || row.short_thread || index}`,
-        title: `${row.short_thread || '未知线程'} · ${core.projectLabel(row.project || row.cwd)}`,
+        title: `${threadLabel(row)} · ${core.projectLabel(row.project || row.cwd)}`,
         meta: [modelsLabel(row), structure, `活跃 ${row.active_duration_label || '—'}`, relativeAge(row.last_age_min)],
         cost: core.costLabel(bounds),
         share,
@@ -1717,7 +1721,7 @@
     return {
       key: `activity:${row.thread_id || row.short_thread || index}`,
       title: `${relativeAge(row.last_age_min)} · ${core.projectLabel(row.project || row.cwd)}`,
-      meta: [row.short_thread || '未知线程', modelsLabel(row), `${formatTokens(row.total)} tokens`],
+      meta: [threadLabel(row), modelsLabel(row), `${formatTokens(row.total)} tokens`],
       cost: core.costLabel(bounds),
       share,
       bounds,
@@ -1791,7 +1795,7 @@
       item.style.setProperty('--depth', String(Math.max(0, numeric(member.depth))))
       const copy = create('div')
       const role = member.agent_nickname || member.agent_role || (member.is_subagent ? '子代理' : '根线程')
-      append(copy, create('div', 'lineage-title', `${member.short_thread || '未知线程'} · ${role}`))
+      append(copy, create('div', 'lineage-title', `${threadLabel(member)} · ${role}`))
       append(copy, create('div', 'lineage-meta', `${core.projectLabel(member.project || member.cwd)} · ${modelsLabel(member)} · ${formatTokens(member.total)} tokens · 活跃 ${member.active_duration_label || '—'}`))
       const bounds = core.costBounds(member)
       append(item, copy, create('span', 'lineage-cost', core.costLabel(bounds)))
